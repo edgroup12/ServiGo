@@ -1,6 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { Eye, MoreHorizontal, Clock, CheckCircle2, XCircle, MessageSquare, MapPin } from 'lucide-react';
+import { useToast } from '../Toast';
 const StatusBadge = ({ status }) => {
   const configs = {
     pending: { color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/20', icon: Clock, shadow: 'shadow-[0_0_15px_rgba(251,191,36,0.2)]' },
@@ -21,6 +22,7 @@ const StatusBadge = ({ status }) => {
 };
 
 const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
+  const { toast } = useToast();
   return (
     <div id="recent-bookings" className="glass-card overflow-hidden border-gradient-premium">
       <div className="p-8 border-b border-white/5 flex items-center justify-between">
@@ -28,7 +30,7 @@ const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
           <h3 className="text-xl font-black text-white font-poppins tracking-tight">Recent Bookings</h3>
           <p className="text-white/60 text-xs font-bold uppercase tracking-wider mt-1">Transaction overview</p>
         </div>
-        <button 
+        <button
           className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
         >
           View All
@@ -48,17 +50,17 @@ const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
           </thead>
           <tbody className="divide-y divide-white/5">
             {bookings.length > 0 ? bookings.map((booking, idx) => (
-              <tr 
-                key={booking._id} 
+              <tr
+                key={booking._id}
                 className="hover:bg-white/[0.03] transition-colors group"
               >
                 <td className="px-8 py-6">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-blue to-neon-purple p-[1px]">
                       <div className="w-full h-full rounded-xl bg-navy-deeper flex items-center justify-center overflow-hidden">
-                        <img 
-                          src={booking.worker?.photoUrl || `https://ui-avatars.com/api/?name=${booking.worker?.name || 'W'}&background=0f172a&color=6366f1`} 
-                          alt="" 
+                        <img
+                          src={booking.worker?.photoUrl || `https://ui-avatars.com/api/?name=${booking.worker?.name || 'W'}&background=0f172a&color=6366f1`}
+                          alt=""
                           className="w-full h-full object-cover"
                         />
                       </div>
@@ -81,7 +83,7 @@ const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
                 </td>
                 <td className="px-8 py-6 text-right">
                   <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
+                    <button
                       onClick={() => onOpenChat?.(booking)}
                       className="p-2 bg-gradient-primary rounded-lg text-white hover:scale-105 transition-all shadow-glow-blue/20"
                       title="Chat with Provider"
@@ -89,7 +91,7 @@ const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
                       <MessageSquare size={16} />
                     </button>
                     {booking.status === 'confirmed' && (
-                      <button 
+                      <button
                         onClick={() => onTrackWorker?.(booking)}
                         className="p-2 bg-neon-blue rounded-lg text-white hover:scale-105 transition-all shadow-glow-blue/30"
                         title="Track Live Location"
@@ -97,10 +99,10 @@ const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
                         <MapPin size={16} />
                       </button>
                     )}
-                    <button onClick={() => alert('View Details coming soon')} className="p-2 bg-white/5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
+                    <button onClick={() => toast('View Details coming soon', 'info')} className="p-2 bg-white/5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
                       <Eye size={16} />
                     </button>
-                    <button onClick={() => alert('More Options coming soon')} className="p-2 bg-white/5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
+                    <button onClick={() => toast('More Options coming soon', 'info')} className="p-2 bg-white/5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
                       <MoreHorizontal size={16} />
                     </button>
                   </div>

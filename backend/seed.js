@@ -22,11 +22,28 @@ const seedDatabase = async () => {
 
     console.log('Categories seeded.');
 
-    // 2. Create Dummy Customer
+    // 2. Create Dummy Admin
+    if (!process.env.ADMIN_SEED_PASSWORD && !process.env.NODE_ENV) {
+      console.warn('WARNING: Using default admin seed password. Set ADMIN_SEED_PASSWORD env var for production.');
+    }
+    await User.create({
+      name: 'Admin User',
+      email: 'admin@servigo.com',
+      password: process.env.ADMIN_SEED_PASSWORD || 'adminpassword',
+      role: 'admin',
+      phone: '01911000000',
+    });
+
+    console.log('Admin user seeded.');
+
+    // 3. Create Dummy Customer
+    if (!process.env.USER_SEED_PASSWORD && !process.env.NODE_ENV) {
+      console.warn('WARNING: Using default user seed password. Set USER_SEED_PASSWORD env var for production.');
+    }
     const customer = await User.create({
       name: 'Rahim Uddin',
       email: 'rahim@servigo.com',
-      password: 'password123',
+      password: process.env.USER_SEED_PASSWORD || 'password123',
       role: 'customer',
       phone: '01711000000',
     });
@@ -40,11 +57,11 @@ const seedDatabase = async () => {
       for (let i = 0; i < 4; i++) {
         const workerIndex = (catIdx * 4) + i;
         const isAvailable = i % 2 === 0; // 0, 2 are true | 1, 3 are false
-        
+
         workersData.push({
           name: `${firstNames[workerIndex]} ${lastNames[workerIndex]}`,
           email: `worker${workerIndex + 1}@servigo.com`,
-          password: 'password123',
+          password: process.env.USER_SEED_PASSWORD || 'password123',
           role: 'worker',
           phone: `01811000${(workerIndex + 10).toString().padStart(3, '0')}`,
           category: cat._id,
@@ -92,7 +109,10 @@ const seedDatabase = async () => {
       }
     ];
 
-    await Booking.insertMany(bookingsData);
+    // Use create() instead of insertMany() to trigger Mongoose middleware (validation, pre-save hooks)
+    for (const bookingData of bookingsData) {
+      await Booking.create(bookingData);
+    }
     console.log('Bookings seeded.');
 
     console.log('--- Seeding Completed ---');

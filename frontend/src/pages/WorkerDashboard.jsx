@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Calendar, 
-  Check, 
-  X, 
-  MapPin, 
-  DollarSign, 
-  Briefcase, 
+import {
+  Calendar,
+  Check,
+  X,
+  MapPin,
+  DollarSign,
+  Briefcase,
   Clock,
   ArrowUpRight,
   TrendingUp,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { format } from 'date-fns';
+import { useToast } from '../components/Toast';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import StatCard from '../components/dashboard/StatCard';
 import ChatBox from '../components/ChatBox';
@@ -22,10 +23,26 @@ import LocationBroadcaster from '../components/dashboard/LocationBroadcaster';
 
 const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeChat, setActiveChat] = useState(null);
-  const [isAvailable, setIsAvailable] = useState(true);
+  const [isAvailable, setIsAvailable] = useState(currentUser?.isAvailable ?? true);
+
+  const toggleAvailability = async () => {
+    const newState = !isAvailable;
+    setIsAvailable(newState);
+    if (setCurrentUser) setCurrentUser(prev => ({ ...prev, isAvailable: newState }));
+
+    try {
+      await api.patch(`/users/${currentUser._id}/availability`, { isAvailable: newState });
+    } catch (error) {
+      console.error('Failed to update availability:', error);
+      // Revert on error
+      setIsAvailable(!newState);
+      if (setCurrentUser) setCurrentUser(prev => ({ ...prev, isAvailable: !newState }));
+    }
+  };
 
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'worker') {
@@ -50,10 +67,10 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
     try {
       const res = await api.patch(`/bookings/${bookingId}/status`, { status });
       setBookings(bookings.map(b => b._id === bookingId ? { ...b, status: res.data.status } : b));
-      alert(`Job ${status} successfully!`);
+      toast(`Job ${status} successfully!`, 'success');
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status. Please make sure the backend server is running and your internet connection is stable.');
+      toast('Failed to update status. Please check your connection and try again.', 'error');
     }
   };
 
@@ -85,35 +102,35 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
   };
 
   const stats = [
-    { 
-      icon: Briefcase, 
-      label: 'Active Jobs', 
-      value: activeJobs.length, 
-      trend: '+3', 
+    {
+      icon: Briefcase,
+      label: 'Active Jobs',
+      value: activeJobs.length,
+      trend: '+3',
       colorClass: 'bg-neon-blue',
       onClick: () => scrollToSection('active-jobs')
     },
-    { 
-      icon: Calendar, 
-      label: 'New Requests', 
-      value: pendingRequests.length, 
-      trend: '+5', 
+    {
+      icon: Calendar,
+      label: 'New Requests',
+      value: pendingRequests.length,
+      trend: '+5',
       colorClass: 'bg-neon-teal',
       onClick: () => scrollToSection('incoming-requests')
     },
-    { 
-      icon: Check, 
-      label: 'Completed', 
-      value: bookings.filter(b => b.status === 'completed').length, 
-      trend: '+12%', 
+    {
+      icon: Check,
+      label: 'Completed',
+      value: bookings.filter(b => b.status === 'completed').length,
+      trend: '+12%',
       colorClass: 'bg-neon-green',
       onClick: () => scrollToSection('recent-history')
     },
-    { 
-      icon: DollarSign, 
-      label: 'Total Earnings', 
-      value: `৳${earnings.toLocaleString()}`, 
-      trend: '+24%', 
+    {
+      icon: DollarSign,
+      label: 'Total Earnings',
+      value: `৳${earnings.toLocaleString()}`,
+      trend: '+24%',
       colorClass: 'bg-neon-purple',
       onClick: () => scrollToSection('recent-history')
     },
@@ -131,17 +148,17 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
             Manage your service requests and track your performance
           </p>
         </div>
-        
+
         <div className="flex flex-wrap gap-4">
-          <button 
+          <button
             onClick={() => navigate('/worker-dashboard/profile')}
             className="flex items-center gap-2 px-6 py-4 rounded-2xl text-sm font-bold transition-all hover:scale-105 active:scale-95 bg-white/5 border border-white/10 text-white hover:bg-white/10"
           >
             <User size={18} className="text-neon-purple" />
             Profile Settings
           </button>
-          <button 
-            onClick={() => setIsAvailable(!isAvailable)}
+          <button
+            onClick={toggleAvailability}
             className={`flex items-center gap-2 px-6 py-4 rounded-2xl text-sm font-bold transition-all hover:scale-105 active:scale-95 text-white ${isAvailable ? 'bg-gradient-primary shadow-glow-blue hover:opacity-90' : 'bg-white/10 border border-white/20 text-white/50'}`}
           >
             <span className={`w-2 h-2 rounded-full ${isAvailable ? 'bg-white animate-pulse' : 'bg-white/20'}`}></span>
@@ -203,7 +220,7 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
                       <div className="text-right">
                         <p className="text-2xl font-black text-white font-poppins">৳{req.estimatedPrice}</p>
                         <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mt-1 bg-white/5 px-2 py-1 rounded-lg border border-white/5 inline-block mb-2 block">{req.paymentMethod}</p>
-                        <button 
+                        <button
                           onClick={() => setActiveChat(req)}
                           className="mt-2 p-2 bg-gradient-primary rounded-lg text-white hover:scale-105 transition-all shadow-glow-blue/20 w-full flex justify-center items-center gap-2"
                         >
@@ -211,21 +228,21 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
                         </button>
                       </div>
                     </div>
-                    
+
                     <div className="bg-white/5 px-8 py-4 text-xs font-bold text-white/60 border-t border-white/5 flex items-start gap-3">
-                      <span className="text-white uppercase tracking-widest text-[10px]">Issue:</span> 
+                      <span className="text-white uppercase tracking-widest text-[10px]">Issue:</span>
                       <span className="leading-relaxed opacity-80">{req.description}</span>
                     </div>
-                    
+
                     <div className="flex border-t border-white/5">
-                      <button 
+                      <button
                         onClick={() => updateBookingStatus(req._id, 'declined')}
                         className="flex-1 py-5 text-white/40 font-black text-[10px] uppercase tracking-widest hover:bg-red-500/10 hover:text-red-400 transition-all flex justify-center items-center gap-2"
                       >
                         <X size={16} /> Decline
                       </button>
                       <div className="w-px bg-white/5"></div>
-                      <button 
+                      <button
                         onClick={() => updateBookingStatus(req._id, 'confirmed')}
                         className="flex-1 py-5 text-neon-blue font-black text-[10px] uppercase tracking-widest hover:bg-neon-blue/10 transition-all flex justify-center items-center gap-2"
                       >
@@ -258,14 +275,14 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
                         <h3 className="text-lg font-black text-white font-poppins tracking-tight">{job.customer?.name}</h3>
                       </div>
                       <p className="text-xl font-black text-white font-poppins">৳{job.estimatedPrice}</p>
-                      <button 
+                      <button
                         onClick={() => setActiveChat(job)}
                         className="mt-3 p-2 bg-gradient-primary rounded-lg text-white hover:scale-105 transition-all shadow-glow-blue/20 flex justify-center items-center gap-2"
                       >
                         <MessageSquare size={14} /> <span className="text-[10px] font-bold uppercase tracking-widest">Chat</span>
                       </button>
                     </div>
-                    
+
                     <div className="space-y-3 mb-8">
                       <div className="flex items-center gap-3 text-white/60 text-xs font-bold bg-white/5 p-3 rounded-xl border border-white/5">
                         <MapPin size={14} className="text-neon-blue" />
@@ -276,8 +293,8 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
                         Started {format(new Date(job.date), 'hh:mm a')}
                       </div>
                     </div>
-                    
-                    <button 
+
+                    <button
                       onClick={() => updateBookingStatus(job._id, 'completed')}
                       className="w-full bg-gradient-primary hover:opacity-90 text-white text-[10px] font-black uppercase tracking-[0.2em] py-4 rounded-2xl shadow-glow-blue transition-all hover:scale-[1.02] active:scale-95"
                     >
@@ -294,7 +311,7 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
         <div className="space-y-8">
           <div id="recent-history" className="glass-card border-gradient-premium p-8 sticky top-32">
             <h2 className="text-xl font-black text-white font-poppins tracking-tight mb-8">Recent History</h2>
-            
+
             {pastJobs.length === 0 ? (
               <div className="text-center py-12 text-white/20 font-bold uppercase tracking-widest text-[10px]">No activity recorded</div>
             ) : (
@@ -317,9 +334,9 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
                 ))}
               </div>
             )}
-            
-            <button 
-              onClick={() => alert('Full History feature is coming soon!')}
+
+            <button
+              onClick={() => toast('Full History feature is coming soon!', 'info')}
               className="w-full mt-8 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black text-white/40 hover:text-white uppercase tracking-widest transition-all"
             >
               View Full History
@@ -330,9 +347,9 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
           <div className="glass-card p-8 border-gradient-premium relative overflow-hidden bg-gradient-to-br from-neon-blue/20 to-neon-purple/20">
             <h3 className="text-lg font-black text-white font-poppins tracking-tight mb-2">Need Help?</h3>
             <p className="text-xs font-bold text-white/40 opacity-80 mb-6 uppercase tracking-wider">Our support team is available 24/7</p>
-            <button 
+            <button
               onClick={() => window.location.href = 'mailto:support@servigo.com'}
-              className="px-6 py-3 bg-white text-navy-deeper rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all"
+              className="px-6 py-3 bg-white text-[#0f172a] rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all"
             >
               Contact Support
             </button>
@@ -341,10 +358,10 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
       </div>
 
       {activeChat && (
-        <ChatBox 
-          booking={activeChat} 
-          currentUser={currentUser} 
-          onClose={() => setActiveChat(null)} 
+        <ChatBox
+          booking={activeChat}
+          currentUser={currentUser}
+          onClose={() => setActiveChat(null)}
         />
       )}
 

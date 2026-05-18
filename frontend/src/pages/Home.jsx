@@ -25,8 +25,9 @@ const Home = () => {
         setCategories(catRes.data);
 
         const workRes = await api.get('/workers');
+        const workersData = workRes.data.workers || workRes.data;
         // Get top rated workers
-        const sorted = workRes.data.sort((a, b) => b.rating - a.rating).slice(0, 4);
+        const sorted = workersData.sort((a, b) => b.rating - a.rating).slice(0, 4);
         setFeaturedWorkers(sorted);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -48,7 +49,7 @@ const Home = () => {
       <div className="pt-12 pb-20 px-4 text-center relative overflow-hidden">
         {/* Soft Background Elements */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-neon-blue/5 rounded-full blur-3xl -z-10"></div>
-        
+
         <h1 className="text-5xl md:text-6xl font-black mb-6 bg-gradient-to-r from-[var(--text-main)] to-[var(--neon-purple)] bg-clip-text text-transparent font-poppins tracking-tighter leading-[1.1]">
           How can we help you <br className="md:hidden" /> today?
         </h1>
@@ -143,9 +144,9 @@ const Home = () => {
               </optgroup>
             </select>
           </div>
-          <input 
-            type="text" 
-            placeholder="Search for a service..." 
+          <input
+            type="text"
+            placeholder="Search for a service..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-grow px-4 outline-none text-white placeholder-white/30 bg-transparent font-bold"
@@ -160,8 +161,8 @@ const Home = () => {
       <div className="container mx-auto px-4 -mt-6">
         <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
           {categories.map(cat => (
-            <Link 
-              to={`/services/${cat._id}`} 
+            <Link
+              to={`/services/${cat._id}`}
               key={cat._id}
               className="flex flex-col items-center p-5 bg-[var(--glass-bg)] hover:bg-white/10 border border-[var(--glass-border)] hover:border-white/20 text-[var(--text-main)] backdrop-blur-lg rounded-2xl shadow-soft transition-all hover:-translate-y-1 group"
             >
@@ -193,9 +194,9 @@ const Home = () => {
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6">
                   <div className="relative">
-                    <img 
-                      src={worker.photoUrl || "https://ui-avatars.com/api/?name=" + worker.name + "&background=7F5AF0&color=fff"} 
-                      alt={worker.name} 
+                    <img
+                      src={worker.photoUrl || "https://ui-avatars.com/api/?name=" + worker.name + "&background=7F5AF0&color=fff"}
+                      alt={worker.name}
                       className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md group-hover:scale-105 transition-transform"
                     />
                     <div className="absolute -bottom-1 -right-1 bg-accent w-5 h-5 rounded-full border-4 border-white"></div>
@@ -204,11 +205,11 @@ const Home = () => {
                     TOP RATED
                   </div>
                 </div>
-                
+
                 <div>
                   <h3 className="font-black text-[var(--text-main)] text-xl font-poppins tracking-tight">{worker.name}</h3>
                   <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest mt-1">{worker.category?.name || 'Service Professional'}</p>
-                  
+
                   <div className="flex items-center justify-between mt-6 pt-6 border-t border-[var(--glass-border)]">
                     <div className="flex items-center text-amber-500 bg-amber-500/10 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-amber-500/10">
                       <Star size={14} fill="currentColor" />
@@ -225,8 +226,8 @@ const Home = () => {
           ))}
         </div>
       </div>
-      
-      <style dangerouslySetInnerHTML={{__html: `
+
+      <style>{`
         .hide-scrollbar::-webkit-scrollbar {
           display: none;
         }
@@ -234,7 +235,7 @@ const Home = () => {
           -ms-overflow-style: none;
           scrollbar-width: none;
         }
-      `}} />
+      `}</style>
     </div>
   );
 };

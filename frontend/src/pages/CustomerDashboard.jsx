@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Calendar, 
-  Users, 
-  CheckCircle2, 
-  Briefcase, 
-  Plus, 
-  ArrowUpRight 
+import {
+  Calendar,
+  Users,
+  CheckCircle2,
+  Briefcase,
+  Plus,
+  ArrowUpRight
 } from 'lucide-react';
 import api from '../services/api';
+import { useToast } from '../components/Toast';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import StatCard from '../components/dashboard/StatCard';
 import DashboardCharts from '../components/dashboard/DashboardCharts';
@@ -19,6 +20,7 @@ import { X } from 'lucide-react';
 
 const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeChat, setActiveChat] = useState(null);
@@ -53,37 +55,37 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
   };
 
   const stats = [
-    { 
-      icon: Calendar, 
-      label: 'Total Bookings', 
-      value: bookings.length, 
-      trend: '+12%', 
+    {
+      icon: Calendar,
+      label: 'Total Bookings',
+      value: bookings.length,
+      trend: '+12%',
       colorClass: 'bg-neon-blue',
       onClick: () => scrollToSection('recent-bookings')
     },
-    { 
-      icon: CheckCircle2, 
-      label: 'Completed Jobs', 
-      value: bookings.filter(b => b.status === 'completed').length, 
-      trend: '+5%', 
+    {
+      icon: CheckCircle2,
+      label: 'Completed Jobs',
+      value: bookings.filter(b => b.status === 'completed').length,
+      trend: '+5%',
       colorClass: 'bg-neon-green',
       onClick: () => scrollToSection('recent-bookings')
     },
-    { 
-      icon: Briefcase, 
-      label: 'Active Services', 
-      value: bookings.filter(b => b.status === 'confirmed').length, 
-      trend: '+2', 
+    {
+      icon: Briefcase,
+      label: 'Active Services',
+      value: bookings.filter(b => b.status === 'confirmed').length,
+      trend: '+2',
       colorClass: 'bg-neon-teal',
       onClick: () => scrollToSection('recent-bookings')
     },
-    { 
-      icon: ArrowUpRight, 
-      label: 'Total Spent', 
-      value: `৳${bookings.reduce((sum, b) => sum + (b.estimatedPrice || 0), 0)}`, 
-      trend: '+18%', 
+    {
+      icon: ArrowUpRight,
+      label: 'Total Spent',
+      value: `৳${bookings.reduce((sum, b) => sum + (b.estimatedPrice || 0), 0)}`,
+      trend: '+18%',
       colorClass: 'bg-neon-purple',
-      onClick: () => alert('Total spent calculation based on all bookings.')
+      onClick: () => toast('Total spent calculated based on all completed bookings.', 'info')
     },
   ];
 
@@ -99,7 +101,7 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
             Here's what's happening with your services today
           </p>
         </div>
-        
+
         <div className="flex gap-4">
           <button onClick={() => navigate('/services/all')} className="flex items-center gap-2 px-6 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-sm font-bold transition-all hover:scale-105 active:scale-95 text-white/90">
             <Plus size={18} className="text-neon-blue" />
@@ -120,7 +122,7 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
       </div>
 
       {/* Charts Section */}
-      <DashboardCharts />
+      <DashboardCharts currentUser={currentUser} />
 
       {/* Recent Activity Table */}
       {loading ? (
@@ -128,10 +130,10 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
           <div className="w-12 h-12 border-4 border-neon-blue/20 border-t-neon-blue rounded-full animate-spin"></div>
         </div>
       ) : (
-        <RecentBookings 
-          bookings={bookings} 
-          onOpenChat={setActiveChat} 
-          onTrackWorker={setTrackingBooking} 
+        <RecentBookings
+          bookings={bookings}
+          onOpenChat={setActiveChat}
+          onTrackWorker={setTrackingBooking}
         />
       )}
 
@@ -150,7 +152,7 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
                   <p className="text-[10px] font-black text-neon-blue uppercase tracking-widest">Job #{trackingBooking._id.slice(-6)}</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setTrackingBooking(null)}
                 className="p-2 hover:bg-white/10 rounded-full text-white/60 hover:text-white transition-all"
               >
@@ -169,7 +171,7 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
                     <p className="text-[10px] text-white/40 uppercase font-black">On the way to your location</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => {
                     setActiveChat(trackingBooking);
                     setTrackingBooking(null);
@@ -185,10 +187,10 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
       )}
 
       {activeChat && (
-        <ChatBox 
-          booking={activeChat} 
-          currentUser={currentUser} 
-          onClose={() => setActiveChat(null)} 
+        <ChatBox
+          booking={activeChat}
+          currentUser={currentUser}
+          onClose={() => setActiveChat(null)}
         />
       )}
     </DashboardLayout>

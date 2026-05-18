@@ -34,7 +34,7 @@ const WorkerList = () => {
         }
         
         const res = await api.get(url);
-        setWorkers(res.data);
+        setWorkers(res.data.workers || res.data);
       } catch (error) {
         console.error('Error fetching workers', error);
       } finally {

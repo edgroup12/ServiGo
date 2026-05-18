@@ -8,7 +8,7 @@ const WorkerProfile = () => {
   const navigate = useNavigate();
   const [worker, setWorker] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Dummy scheduling state
   const [selectedDate, setSelectedDate] = useState(0);
   const [selectedTime, setSelectedTime] = useState(null);
@@ -63,22 +63,22 @@ const WorkerProfile = () => {
         <div className="glass-premium rounded-3xl shadow-glow-blue/10 p-6 md:p-8 mb-8 border border-white/10">
           <div className="flex flex-col items-center text-center -mt-20 mb-6">
             <div className="relative">
-              <img 
-                src={worker.photoUrl || "https://ui-avatars.com/api/?name=" + worker.name + "&background=7F5AF0&color=fff"} 
-                alt={worker.name} 
+              <img
+                src={worker.photoUrl || "https://ui-avatars.com/api/?name=" + worker.name + "&background=7F5AF0&color=fff"}
+                alt={worker.name}
                 className="w-32 h-32 rounded-full border-4 border-white shadow-md object-cover"
               />
               {worker.isAvailable && (
                 <div className="absolute bottom-1 right-2 bg-accent w-6 h-6 rounded-full border-4 border-white shadow-sm"></div>
               )}
             </div>
-            
+
             <h1 className="text-3xl font-black text-white flex items-center justify-center gap-2 mt-4 font-poppins tracking-tighter">
-              {worker.name} 
+              {worker.name}
               <CheckCircle size={22} className="text-neon-blue shadow-glow-blue" />
             </h1>
             <p className="text-white/60 font-black uppercase tracking-widest text-xs mt-1">{worker.category?.name || 'Professional'}</p>
-            
+
             <div className="flex flex-wrap justify-center gap-4 mt-5 text-sm">
               <div className="flex items-center text-amber-500 bg-amber-500/10 px-3 py-1.5 rounded-xl font-bold border border-amber-500/10">
                 <Star size={18} fill="currentColor" className="mr-1.5" />
@@ -95,7 +95,7 @@ const WorkerProfile = () => {
             </div>
           </div>
 
-          <div className="border-t border-gray-100 pt-8 mb-8">
+          <div className="border-t border-[var(--glass-border)] pt-8 mb-8">
             <h3 className="text-xl font-black text-white mb-4 font-poppins flex items-center gap-2 uppercase tracking-tight">
               <Info size={20} className="text-neon-blue" /> About
             </h3>
@@ -122,7 +122,7 @@ const WorkerProfile = () => {
           <h3 className="text-xl font-black text-white mb-6 font-poppins flex items-center gap-2 uppercase tracking-tight">
             <Clock size={20} className="text-neon-purple" /> Select Date & Time
           </h3>
-          
+
           <div className="mb-8">
             <div className="flex justify-between items-center mb-4">
               <span className="font-bold text-white/80 uppercase tracking-widest text-xs">{currentMonthYear}</span>
@@ -130,7 +130,7 @@ const WorkerProfile = () => {
             {/* Horizontal Calendar */}
             <div className="flex gap-3 overflow-x-auto pb-4 hide-scrollbar">
               {dates.map((d, i) => (
-                <button 
+                <button
                   key={i}
                   onClick={() => setSelectedDate(i)}
                   className={`flex flex-col items-center justify-center min-w-[70px] h-[90px] rounded-2xl transition-all ${selectedDate === i ? 'bg-gradient-primary shadow-glow-blue text-white' : 'bg-white/5 text-gray-500 hover:bg-white/10 border border-white/10'}`}
@@ -166,7 +166,7 @@ const WorkerProfile = () => {
             <p className="text-white/40 text-[10px] font-black uppercase tracking-widest">Total Price</p>
             <div className="text-2xl font-black text-white font-poppins tracking-tighter">৳{worker.pricePerHour}<span className="text-sm font-normal text-white/40">/hr</span></div>
           </div>
-          <button 
+          <button
             onClick={() => navigate(`/book/${worker._id}`)}
             className="bg-gradient-primary hover:opacity-90 text-white font-bold py-4 px-8 rounded-2xl shadow-soft-lg transition-transform hover:scale-105 flex items-center gap-2"
           >

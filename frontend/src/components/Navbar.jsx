@@ -20,7 +20,7 @@ const Navbar = ({ currentUser, setCurrentUser, theme, toggleTheme }) => {
         <div className="flex items-center gap-4">
           <button 
             onClick={toggleTheme}
-            className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 transition-all active:scale-95 shadow-soft"
+            className="p-2.5 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--text-secondary)] hover:text-[var(--text-main)] hover:bg-white/10 transition-all active:scale-95 shadow-soft"
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           >
             {theme === 'dark' ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} className="text-blue-500" />}
@@ -28,10 +28,10 @@ const Navbar = ({ currentUser, setCurrentUser, theme, toggleTheme }) => {
           {currentUser ? (
             <>
               <Link 
-                to={currentUser.role === 'worker' ? '/worker-dashboard' : '/customer-dashboard'}
+                to={currentUser.role === 'admin' ? '/admin-dashboard' : (currentUser.role === 'worker' ? '/worker-dashboard' : '/customer-dashboard')}
                 className="hover:text-primary-start transition flex items-center gap-2 font-medium"
               >
-                <div className="bg-white/5 p-2 rounded-full text-neon-blue border border-white/10">
+                <div className="bg-[var(--glass-bg)] p-2 rounded-full text-neon-blue border border-[var(--glass-border)]">
                   <User size={18} />
                 </div>
                 <span className="hidden md:inline font-bold">{currentUser.name || 'User'}</span>

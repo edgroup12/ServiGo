@@ -47,16 +47,16 @@ const LiveTrackingMap = ({ bookingId, initialPosition }) => {
   useEffect(() => {
     socket.emit('join_booking', bookingId);
 
-    socket.on('location_updated', (data) => {
-      console.log('Received location update:', data);
+    const handleLocationUpdate = (data) => {
       if (data.bookingId === bookingId) {
         setWorkerPos([data.lat, data.lng]);
         setIsConnected(true);
       }
-    });
+    };
+    socket.on('location_updated', handleLocationUpdate);
 
     return () => {
-      socket.off('location_updated');
+      socket.off('location_updated', handleLocationUpdate);
     };
   }, [bookingId]);
 
@@ -70,9 +70,9 @@ const LiveTrackingMap = ({ bookingId, initialPosition }) => {
         </div>
       )}
 
-      <MapContainer 
-        center={workerPos} 
-        zoom={15} 
+      <MapContainer
+        center={workerPos}
+        zoom={15}
         scrollWheelZoom={true}
         style={{ height: '100%', width: '100%', background: '#020617' }}
       >
@@ -83,7 +83,7 @@ const LiveTrackingMap = ({ bookingId, initialPosition }) => {
         />
         <Marker position={workerPos} icon={workerIcon}>
           <Popup>
-            <div className="text-navy-deeper font-bold">
+            <div className="text-[#0f172a] font-bold">
               Worker is on the way!
             </div>
           </Popup>

@@ -1,19 +1,35 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { MapPin } from 'lucide-react';
 import socket from '../../services/socket';
 
 const LocationBroadcaster = ({ activeBookings }) => {
+  const watchIdsRef = useRef([]);
+  const prevBookingIdsRef = useRef('');
+
   useEffect(() => {
-    if (!activeBookings || activeBookings.length === 0) return;
+    if (!activeBookings || activeBookings.length === 0) {
+      // Clear all existing watches when no active bookings
+      watchIdsRef.current.forEach(id => navigator.geolocation.clearWatch(id));
+      watchIdsRef.current = [];
+      prevBookingIdsRef.current = '';
+      return;
+    }
 
-    const watchIds = activeBookings.map(booking => {
-      // Only track if the booking is 'confirmed' or 'in-progress' (for demo, confirmed)
-      if (booking.status !== 'confirmed') return null;
+    const confirmedBookings = activeBookings.filter(b => b.status === 'confirmed');
 
+    // Build a stable key from booking IDs to avoid unnecessary re-watches
+    const bookingIdsKey = confirmedBookings.map(b => b._id).sort().join(',');
+    if (bookingIdsKey === prevBookingIdsRef.current) return;
+
+    // Clear old watches before creating new ones
+    watchIdsRef.current.forEach(id => navigator.geolocation.clearWatch(id));
+    watchIdsRef.current = [];
+    prevBookingIdsRef.current = bookingIdsKey;
+
+    confirmedBookings.forEach(booking => {
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          console.log(`Sending location for booking ${booking._id}: ${latitude}, ${longitude}`);
           socket.emit('update_location', {
             bookingId: booking._id,
             lat: latitude,
@@ -30,11 +46,12 @@ const LocationBroadcaster = ({ activeBookings }) => {
           maximumAge: 0
         }
       );
-      return watchId;
-    }).filter(id => id !== null);
+      watchIdsRef.current.push(watchId);
+    });
 
     return () => {
-      watchIds.forEach(id => navigator.geolocation.clearWatch(id));
+      watchIdsRef.current.forEach(id => navigator.geolocation.clearWatch(id));
+      watchIdsRef.current = [];
     };
   }, [activeBookings]);
 

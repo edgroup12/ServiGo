@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Calendar, Clock, MapPin, CreditCard, AlertCircle, ChevronLeft, CheckCircle2 } from 'lucide-react';
 import api from '../services/api';
+import { useToast } from '../components/Toast';
 
 const Booking = ({ currentUser }) => {
   const { workerId } = useParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [worker, setWorker] = useState(null);
-  
+
   const [formData, setFormData] = useState({
     date: '',
     time: '',
@@ -18,7 +20,7 @@ const Booking = ({ currentUser }) => {
 
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'customer') {
-      alert('Please login as a Customer to book a service.');
+      toast('Please login as a Customer to book a service.', 'warning');
       navigate('/login');
       return;
     }
@@ -57,7 +59,7 @@ const Booking = ({ currentUser }) => {
       navigate('/customer-dashboard');
     } catch (error) {
       console.error('Error creating booking:', error);
-      alert('Failed to create booking.');
+      toast('Failed to create booking. Please try again.', 'error');
     }
   };
 
@@ -80,13 +82,13 @@ const Booking = ({ currentUser }) => {
           {/* Form */}
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit} className="glass-premium rounded-3xl shadow-glow-blue/10 p-6 md:p-8 border border-white/10">
-              
+
               <div className="mb-8">
                 <h3 className="text-xl font-black text-white mb-5 font-poppins flex items-center gap-2 uppercase tracking-tight">
                   <CheckCircle2 size={22} className="text-neon-blue shadow-glow-blue" /> Job Details
                 </h3>
                 <label className="block text-xs font-black text-white/40 uppercase tracking-widest mb-2">Describe the problem</label>
-                <textarea 
+                <textarea
                   name="description"
                   value={formData.description}
                   onChange={handleChange}
@@ -102,7 +104,7 @@ const Booking = ({ currentUser }) => {
                   <MapPin size={22} className="text-neon-blue shadow-glow-blue" /> Location
                 </h3>
                 <label className="block text-xs font-black text-white/40 uppercase tracking-widest mb-2">Service Address</label>
-                <input 
+                <input
                   type="text"
                   name="address"
                   value={formData.address}
@@ -120,7 +122,7 @@ const Booking = ({ currentUser }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-xs font-black text-white/40 uppercase tracking-widest mb-2">Date</label>
-                    <input 
+                    <input
                       type="date"
                       name="date"
                       value={formData.date}
@@ -131,7 +133,7 @@ const Booking = ({ currentUser }) => {
                   </div>
                   <div>
                     <label className="block text-xs font-black text-white/40 uppercase tracking-widest mb-2">Time</label>
-                    <input 
+                    <input
                       type="time"
                       name="time"
                       value={formData.time}
@@ -149,17 +151,16 @@ const Booking = ({ currentUser }) => {
                 </h3>
                 <div className="grid grid-cols-3 gap-4">
                   {['Cash', 'bKash', 'Nagad'].map((method) => (
-                    <label 
-                      key={method} 
-                      className={`cursor-pointer border-2 rounded-2xl p-4 text-center transition-all ${
-                        formData.paymentMethod === method
-                          ? 'border-purple-500 bg-purple-500/10 backdrop-blur-sm shadow-xl scale-[1.02]'
-                          : 'border-white/10 bg-white/5 backdrop-blur-sm hover:border-white/30'
-                      }`}
+                    <label
+                      key={method}
+                      className={`cursor-pointer border-2 rounded-2xl p-4 text-center transition-all ${formData.paymentMethod === method
+                        ? 'border-purple-500 bg-purple-500/10 backdrop-blur-sm shadow-xl scale-[1.02]'
+                        : 'border-white/10 bg-white/5 backdrop-blur-sm hover:border-white/30'
+                        }`}
                     >
-                      <input 
-                        type="radio" 
-                        name="paymentMethod" 
+                      <input
+                        type="radio"
+                        name="paymentMethod"
                         value={method}
                         checked={formData.paymentMethod === method}
                         onChange={handleChange}
@@ -183,11 +184,11 @@ const Booking = ({ currentUser }) => {
           <div className="lg:col-span-1">
             <div className="glass-premium rounded-3xl shadow-glow-blue/10 p-6 sticky top-24 border border-white/10">
               <h3 className="text-xl font-black mb-6 font-poppins text-white uppercase tracking-tight">Service Summary</h3>
-              
+
               <div className="flex items-center gap-4 mb-6 bg-white/5 p-4 rounded-2xl border border-white/5">
-                <img 
-                  src={worker.photoUrl || "https://ui-avatars.com/api/?name=" + worker.name + "&background=7F5AF0&color=fff"} 
-                  alt={worker.name} 
+                <img
+                  src={worker.photoUrl || "https://ui-avatars.com/api/?name=" + worker.name + "&background=7F5AF0&color=fff"}
+                  alt={worker.name}
                   className="w-14 h-14 rounded-full object-cover shadow-sm border-2 border-white"
                 />
                 <div>

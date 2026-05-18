@@ -4,8 +4,8 @@ const bcrypt = require('bcryptjs');
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
-  password: { type: String },
-  role: { type: String, enum: ['customer', 'worker'], required: true },
+  password: { type: String, required: true },
+  role: { type: String, enum: ['customer', 'worker', 'admin'], required: true },
   phone: { type: String },
   // Worker specific fields
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema({
 });
 
 // Hash password before saving
-userSchema.pre('save', async function() {
+userSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
   try {
     const salt = await bcrypt.genSalt(10);
@@ -31,8 +31,12 @@ userSchema.pre('save', async function() {
 });
 
 // Method to compare password
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
+
+// Add Indexes
+userSchema.index({ role: 1 });
+userSchema.index({ category: 1 });
 
 module.exports = mongoose.model('User', userSchema);

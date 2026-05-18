@@ -7,7 +7,7 @@ const messageSchema = new mongoose.Schema({
     required: true
   },
   senderId: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
     required: true
   },
   senderModel: {
@@ -24,5 +24,10 @@ const messageSchema = new mongoose.Schema({
     default: Date.now
   }
 });
+
+// Add Indexes
+messageSchema.index({ bookingId: 1 });
+messageSchema.index({ timestamp: 1 });
+messageSchema.index({ senderId: 1 });
 
 module.exports = mongoose.model('Message', messageSchema);
