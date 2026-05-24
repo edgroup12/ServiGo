@@ -7,15 +7,15 @@ const LocationBroadcaster = ({ activeBookings }) => {
   const prevBookingIdsRef = useRef('');
 
   useEffect(() => {
-    if (!activeBookings || activeBookings.length === 0) {
-      // Clear all existing watches when no active bookings
+    const confirmedBookings = activeBookings ? activeBookings.filter(b => b.status === 'confirmed') : [];
+
+    if (confirmedBookings.length === 0) {
+      // Clear all existing watches when no active confirmed bookings
       watchIdsRef.current.forEach(id => navigator.geolocation.clearWatch(id));
       watchIdsRef.current = [];
       prevBookingIdsRef.current = '';
       return;
     }
-
-    const confirmedBookings = activeBookings.filter(b => b.status === 'confirmed');
 
     // Build a stable key from booking IDs to avoid unnecessary re-watches
     const bookingIdsKey = confirmedBookings.map(b => b._id).sort().join(',');
@@ -26,28 +26,28 @@ const LocationBroadcaster = ({ activeBookings }) => {
     watchIdsRef.current = [];
     prevBookingIdsRef.current = bookingIdsKey;
 
-    confirmedBookings.forEach(booking => {
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        confirmedBookings.forEach(booking => {
           socket.emit('update_location', {
             bookingId: booking._id,
             lat: latitude,
             lng: longitude,
             timestamp: new Date().toISOString()
           });
-        },
-        (error) => {
-          console.error('Error watching position:', error);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 5000,
-          maximumAge: 0
-        }
-      );
-      watchIdsRef.current.push(watchId);
-    });
+        });
+      },
+      (error) => {
+        console.error('Error watching position:', error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+      }
+    );
+    watchIdsRef.current.push(watchId);
 
     return () => {
       watchIdsRef.current.forEach(id => navigator.geolocation.clearWatch(id));

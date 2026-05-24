@@ -90,8 +90,8 @@ router.patch('/users/:id/availability', auth, async (req, res) => {
 // Update worker profile
 router.put('/workers/:id', auth, async (req, res) => {
   try {
-    // Only the worker themselves can update their profile
-    if (req.user.id !== req.params.id) {
+    // Only the worker themselves or an admin can update their profile
+    if (req.user.id !== req.params.id && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Unauthorized to update this profile' });
     }
 
@@ -112,8 +112,8 @@ router.put('/workers/:id', auth, async (req, res) => {
 // Update customer profile
 router.put('/customers/:id', auth, async (req, res) => {
   try {
-    // Only the customer themselves can update their profile
-    if (req.user.id !== req.params.id) {
+    // Only the customer themselves or an admin can update their profile
+    if (req.user.id !== req.params.id && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Unauthorized to update this profile' });
     }
 
