@@ -1,4 +1,3 @@
-import React from 'react';
 import { TrendingUp } from 'lucide-react';
 
 const StatCard = ({ icon: Icon, label, value, trend, colorClass, onClick }) => {

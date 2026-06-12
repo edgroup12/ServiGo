@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, CheckCircle2, MessageSquare, AlertCircle, Clock, Trash2, ExternalLink } from 'lucide-react';
 import api from '../../services/api';
 import socket from '../../services/socket';

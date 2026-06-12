@@ -1,4 +1,3 @@
-import React from 'react';
 import { format } from 'date-fns';
 import { Eye, MoreHorizontal, Clock, CheckCircle2, XCircle, MessageSquare, MapPin } from 'lucide-react';
 import { useToast } from '../Toast';

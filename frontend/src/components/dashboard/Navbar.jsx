@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Bell, ChevronDown, User, MoreVertical } from 'lucide-react';
 import NotificationCenter from './NotificationCenter';
 import api from '../../services/api';

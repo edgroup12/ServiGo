@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Send, X, User, CheckCheck, Clock, Sparkles } from 'lucide-react';
 import api from '../services/api';
 import socket from '../services/socket';

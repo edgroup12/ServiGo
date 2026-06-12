@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, Link, useNavigate } from 'react-router-dom';
-import { LogIn, UserCircle, Briefcase, Mail, Lock, ArrowRight, Sun, Moon, ShieldCheck } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation, Link, useNavigate } from 'react-router-dom';
+import { LogIn, Mail, Lock } from 'lucide-react';
 import Home from './pages/Home';
 import WorkerList from './pages/WorkerList';
 import WorkerProfile from './pages/WorkerProfile';
@@ -20,21 +20,6 @@ const Login = ({ setCurrentUser }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
-
-  const handleQuickLogin = async (role) => {
-    try {
-      const res = await fetch(`/api/mock-user/${role}`);
-      if (!res.ok) throw new Error('Failed to fetch user');
-      const data = await res.json();
-      const userData = { ...data.user, token: data.token };
-      setCurrentUser(userData);
-      if (role === 'admin') navigate('/admin-dashboard');
-      else navigate(role === 'customer' ? '/customer-dashboard' : '/worker-dashboard');
-    } catch (err) {
-      console.error('[QuickLogin] Error:', err);
-      setError('Could not connect to server. Please make sure backend is running.');
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -121,38 +106,6 @@ const Login = ({ setCurrentUser }) => {
           </p>
         </div>
 
-        {import.meta.env.VITE_ENABLE_QUICK_LOGIN !== 'false' && (
-          <div className="mt-10">
-            <div className="relative mb-8">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
-              <div className="relative flex justify-center text-xs uppercase"><span className="bg-[var(--bg-color)] px-4 text-[var(--text-muted)] font-black tracking-widest">Quick Login</span></div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => handleQuickLogin('customer')}
-                className="flex items-center justify-center gap-2 bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 transition-all py-3.5 rounded-2xl font-black uppercase tracking-widest text-[10px]"
-              >
-                <UserCircle size={18} className="text-neon-blue" />
-                Customer
-              </button>
-              <button
-                onClick={() => handleQuickLogin('worker')}
-                className="flex items-center justify-center gap-2 bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 transition-all py-3.5 rounded-2xl font-black uppercase tracking-widest text-[10px]"
-              >
-                <Briefcase size={18} className="text-neon-purple" />
-                Worker
-              </button>
-              <button
-                onClick={() => handleQuickLogin('admin')}
-                className="col-span-2 flex items-center justify-center gap-2 bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 transition-all py-3.5 rounded-2xl font-black uppercase tracking-widest text-[10px]"
-              >
-                <ShieldCheck size={18} className="text-neon-green" />
-                Administrator Access
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -420,37 +420,7 @@ router.post('/auth/login', async (req, res) => {
   }
 });
 
-// Login mock: Return a user by role for the demo
-router.get('/mock-user/:role', async (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(403).json({ message: 'Forbidden: Endpoint disabled in production' });
-  }
-
-  try {
-    const user = await User.findOne({ role: req.params.role }).populate('category');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    // Create token for mock user
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '30d' }
-    );
-
-    res.json({
-      token,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        category: user.category
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+// NOTE: /mock-user/:role endpoint has been permanently removed for security.
 
 // Admin Routes
 router.get('/admin/stats', auth, adminOnly, async (req, res) => {
