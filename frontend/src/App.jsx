@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, Link, useNavigate } from 'react-router-dom';
 import { LogIn, UserCircle, Briefcase, Mail, Lock, ArrowRight, Sun, Moon, ShieldCheck } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 import Home from './pages/Home';
 import WorkerList from './pages/WorkerList';
 import WorkerProfile from './pages/WorkerProfile';
@@ -226,6 +227,7 @@ const App = () => {
       <ToastProvider>
         <AppContent />
       </ToastProvider>
+      <Analytics />
     </Router>
   );
 };
