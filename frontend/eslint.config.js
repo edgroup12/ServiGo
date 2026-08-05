@@ -7,7 +7,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores(['dist']),
   {
-    files: ['tailwind.config.js'],
+    files: ['tailwind.config.js', 'api/**/*.js'],
     languageOptions: {
       globals: globals.node,
     },
