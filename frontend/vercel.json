@@ -1,6 +1,6 @@
 {
     "$schema": "https://openapi.vercel.sh/vercel.json",
-    "buildCommand": "npm install --prefix ../backend && npm run build",
+    "buildCommand": "rm -rf api/backend && cp -R ../backend api/backend && rm -rf api/backend/node_modules api/backend/test && npm install --omit=dev --prefix api/backend && npm run build",
     "outputDirectory": "dist",
     "rewrites": [
         {
@@ -14,7 +14,7 @@
     ],
     "functions": {
         "api/index.js": {
-            "includeFiles": "../backend/**",
+            "includeFiles": "api/backend/**",
             "memory": 512,
             "maxDuration": 30
         }
