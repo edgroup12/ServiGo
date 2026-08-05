@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const app = require('./app');
+const connectDatabase = require('./db');
 const seedDatabase = require('./seed');
 
 const server = http.createServer(app);
@@ -70,7 +71,7 @@ const startServer = async () => {
     if (mongoUri) {
       try {
         console.log('Attempting to connect to MongoDB...');
-        await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 });
+        await connectDatabase(mongoUri);
         console.log('MongoDB connected successfully to primary URI');
       } catch (dbErr) {
         console.warn('Failed to connect to process.env.MONGODB_URI:', dbErr.message);
