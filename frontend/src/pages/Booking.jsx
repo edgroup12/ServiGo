@@ -5,7 +5,7 @@ import api from '../services/api';
 import { useToast } from '../components/Toast';
 import { ErrorState, LoadingState } from '../components/AsyncState';
 
-const Booking = ({ currentUser }) => {
+const Booking = () => {
   const { workerId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -56,21 +56,25 @@ const Booking = ({ currentUser }) => {
     e.preventDefault();
     setSubmitting(true);
     try {
+      const bookingDate = new Date(`${formData.date}T${formData.time}`);
+      if (Number.isNaN(bookingDate.getTime()) || bookingDate <= new Date()) {
+        toast('Please select a valid future date and time.', 'error');
+        return;
+      }
+
       const bookingData = {
-        customer: currentUser._id,
         worker: workerId,
-        date: new Date(`${formData.date}T${formData.time}`),
-        address: formData.address,
-        description: formData.description,
-        paymentMethod: formData.paymentMethod,
-        estimatedPrice: worker.pricePerHour * estimatedHours
+        date: bookingDate,
+        address: formData.address.trim(),
+        description: formData.description.trim(),
+        paymentMethod: formData.paymentMethod
       };
 
       await api.post('/bookings', bookingData);
+      toast('Booking request created successfully.', 'success');
       navigate('/customer-dashboard');
     } catch (error) {
-      console.error('Error creating booking:', error);
-      toast('Failed to create booking. Please try again.', 'error');
+      toast(error.response?.data?.message || 'Failed to create booking. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -143,6 +147,7 @@ const Booking = ({ currentUser }) => {
                       value={formData.date}
                       onChange={handleChange}
                       required
+                      min={new Date().toISOString().split('T')[0]}
                       className="w-full bg-white/5 border border-white/10 rounded-xl p-4 focus:ring-2 focus:ring-primary-start/20 focus:border-primary-start outline-none transition text-white"
                     />
                   </div>

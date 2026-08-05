@@ -80,4 +80,52 @@ describe('Express application smoke tests', () => {
 
         assert.equal(response.headers.get('access-control-allow-origin'), null);
     });
+
+    it('rejects public admin registration before accessing the database', async () => {
+        const response = await fetch(`${baseUrl}/api/auth/register`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                name: 'Beta Admin',
+                email: 'beta-admin@example.com',
+                password: 'Password1',
+                role: 'admin'
+            })
+        });
+        const body = await response.json();
+
+        assert.equal(response.status, 400);
+        assert.equal(body.message, 'Role must be customer or worker');
+    });
+
+    it('validates forgot-password email before accessing the database', async () => {
+        const response = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email: 'not-an-email' })
+        });
+        const body = await response.json();
+
+        assert.equal(response.status, 400);
+        assert.match(body.message, /valid email/i);
+    });
+
+    it('validates reset-password token and password strength before database access', async () => {
+        const invalidTokenResponse = await fetch(`${baseUrl}/api/auth/reset-password`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ token: 'short', password: 'Password1' })
+        });
+        assert.equal(invalidTokenResponse.status, 400);
+
+        const weakPasswordResponse = await fetch(`${baseUrl}/api/auth/reset-password`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ token: 'a'.repeat(64), password: 'password' })
+        });
+        const body = await weakPasswordResponse.json();
+
+        assert.equal(weakPasswordResponse.status, 400);
+        assert.match(body.message, /letter and number/i);
+    });
 });

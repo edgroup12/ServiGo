@@ -55,10 +55,7 @@ const Navbar = ({ user, toggleSidebar }) => {
       <div className="flex items-center gap-2 sm:gap-4 lg:gap-6">
         <div className="relative">
           <button
-            onClick={() => {
-              setShowNotifications(!showNotifications);
-              if (!showNotifications) setUnreadCount(0); // Reset visual count when opening
-            }}
+            onClick={() => setShowNotifications(current => !current)}
             className="relative p-3 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl text-[var(--text-main)] hover:text-neon-blue hover:bg-neon-blue/5 hover:border-neon-blue/30 transition-all active:scale-90 shadow-soft"
             aria-label="Open notifications"
           >

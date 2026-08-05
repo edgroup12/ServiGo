@@ -16,6 +16,8 @@ const WorkerProfileSettings = lazy(() => import('./pages/WorkerProfileSettings')
 const CustomerProfileSettings = lazy(() => import('./pages/CustomerProfileSettings'));
 const Register = lazy(() => import('./pages/Register'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const PaymentStatus = lazy(() => import('./components/PaymentStatus'));
 
 // Fallback shown while lazy chunks are downloading
@@ -32,12 +34,14 @@ const Login = ({ setCurrentUser }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -56,8 +60,9 @@ const Login = ({ setCurrentUser }) => {
       else if (userData.role === 'admin') navigate('/admin-dashboard', { replace: true });
       else navigate(userData.role === 'customer' ? '/customer-dashboard' : '/worker-dashboard', { replace: true });
     } catch (err) {
-      console.error('[Login] Error:', err);
       setError(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -107,12 +112,16 @@ const Login = ({ setCurrentUser }) => {
               required
             />
           </div>
+          <div className="text-right">
+            <Link to="/forgot-password" className="text-xs font-bold text-neon-blue hover:underline">Forgot password?</Link>
+          </div>
 
           <button
             type="submit"
-            className="w-full bg-gradient-primary text-[var(--text-main)] font-black py-4 rounded-2xl shadow-glow-blue hover:opacity-90 transition-all active:scale-[0.98] uppercase tracking-widest text-sm mt-4"
+            disabled={loading}
+            className="w-full bg-gradient-primary text-[var(--text-main)] font-black py-4 rounded-2xl shadow-glow-blue hover:opacity-90 transition-all active:scale-[0.98] uppercase tracking-widest text-sm mt-4 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Sign In
+            {loading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
 
@@ -172,6 +181,8 @@ const AppContent = () => {
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login setCurrentUser={setCurrentUser} />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/services/:categoryId" element={<WorkerList />} />
               <Route path="/worker/:workerId" element={<WorkerProfile />} />
               <Route path="/book/:workerId" element={(

@@ -61,8 +61,7 @@ const CustomerProfileSettings = ({ currentUser, setCurrentUser }) => {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      console.error('Error updating profile:', error);
-      toast('Failed to update profile. Please try again.', 'error');
+      toast(error.response?.data?.message || 'Failed to update profile. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
@@ -116,6 +115,8 @@ const CustomerProfileSettings = ({ currentUser, setCurrentUser }) => {
                       value={formData.name}
                       onChange={handleChange}
                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white font-bold outline-none focus:border-neon-blue focus:ring-4 focus:ring-neon-blue/10 transition-all"
+                      minLength="2"
+                      maxLength="80"
                       required
                     />
                   </div>
@@ -145,6 +146,7 @@ const CustomerProfileSettings = ({ currentUser, setCurrentUser }) => {
                       value={formData.address}
                       onChange={handleChange}
                       placeholder="Enter your street address"
+                      maxLength="300"
                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white font-bold outline-none focus:border-neon-blue focus:ring-4 focus:ring-neon-blue/10 transition-all"
                     />
                   </div>

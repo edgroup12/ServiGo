@@ -27,17 +27,10 @@ export default function Register() {
     setError("");
 
     try {
-      console.log("[Register] Sending to /api/auth/register:", form);
-      const res = await api.post("/auth/register", form);
-      console.log("[Register] Success:", res.data);
+      await api.post("/auth/register", form);
       toast("Account Created Successfully", "success");
       navigate("/login");
     } catch (err) {
-      console.error("[Register] Full error object:", err);
-      console.error("[Register] Response:", err.response);
-      console.error("[Register] Status:", err.response?.status);
-      console.error("[Register] Data:", err.response?.data);
-      console.error("[Register] Message:", err.message);
       const serverMsg =
         err.response?.data?.message ||
         err.response?.data?.error ||

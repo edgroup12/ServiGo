@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { Star, MapPin, Filter, Search, ChevronLeft } from 'lucide-react';
 import api from '../services/api';
@@ -14,6 +14,8 @@ const WorkerList = () => {
   const [categoryName, setCategoryName] = useState('All Services');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
 
   // New Filter States
   const [minPrice, setMinPrice] = useState('');
@@ -24,47 +26,41 @@ const WorkerList = () => {
 
   const fetchWorkers = useCallback(async () => {
     try {
-      let url = '/workers';
+      setLoading(true);
+      setError('');
+      const params = {
+        page,
+        limit: 12,
+        ...(categoryId && categoryId !== 'all' ? { category: categoryId } : {}),
+        ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+        ...(minPrice !== '' ? { minPrice } : {}),
+        ...(maxPrice !== '' ? { maxPrice } : {}),
+        ...(minRating > 0 ? { minRating } : {}),
+        ...(onlyAvailable ? { available: true } : {})
+      };
+
       if (categoryId && categoryId !== 'all') {
-        url += `?category=${categoryId}`;
         const catRes = await api.get('/categories');
         const cat = catRes.data.find(c => c._id === categoryId);
-        if (cat) setCategoryName(cat.name);
+        setCategoryName(cat?.name || 'Services');
       } else {
         setCategoryName('All Services');
       }
 
-      const res = await api.get(url);
-      setWorkers(res.data.workers || res.data);
+      const res = await api.get('/workers', { params });
+      setWorkers(res.data.workers || []);
+      setPagination(res.data.pagination || { total: 0, totalPages: 0 });
     } catch (requestError) {
-      console.error('Error fetching workers', requestError);
-      setError('Professionals could not be loaded. Check your connection and try again.');
+      setError(requestError.response?.data?.message || 'Professionals could not be loaded. Check your connection and try again.');
     } finally {
       setLoading(false);
     }
-  }, [categoryId]);
+  }, [categoryId, maxPrice, minPrice, minRating, onlyAvailable, page, searchQuery]);
 
   useEffect(() => {
-    const request = window.setTimeout(fetchWorkers, 0);
+    const request = window.setTimeout(fetchWorkers, 300);
     return () => window.clearTimeout(request);
   }, [fetchWorkers]);
-
-  const filteredWorkers = useMemo(() => {
-    let filtered = [...workers];
-
-    if (searchQuery) {
-      filtered = filtered.filter(w =>
-        w.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        w.category?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    if (minPrice) filtered = filtered.filter(w => w.pricePerHour >= Number(minPrice));
-    if (maxPrice) filtered = filtered.filter(w => w.pricePerHour <= Number(maxPrice));
-    if (minRating > 0) filtered = filtered.filter(w => w.rating >= minRating);
-    if (onlyAvailable) filtered = filtered.filter(w => w.isAvailable);
-
-    return filtered;
-  }, [searchQuery, workers, minPrice, maxPrice, minRating, onlyAvailable]);
 
   const retryFetch = () => {
     setLoading(true);
@@ -78,6 +74,7 @@ const WorkerList = () => {
     setMaxPrice('');
     setMinRating(0);
     setOnlyAvailable(false);
+    setPage(1);
   };
 
   return (
@@ -92,7 +89,7 @@ const WorkerList = () => {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
               <h1 className="text-3xl font-black text-white font-poppins tracking-tighter">{categoryName}</h1>
-              <p className="text-white/60 mt-1.5 text-xs font-bold uppercase tracking-wide">Found {filteredWorkers.length} premium professionals nearby</p>
+              <p className="text-white/60 mt-1.5 text-xs font-bold uppercase tracking-wide">Found {pagination.total} premium professionals</p>
             </div>
 
             <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto">
@@ -105,7 +102,10 @@ const WorkerList = () => {
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 outline-none text-white placeholder-white/30 font-bold focus:ring-2 focus:ring-neon-blue/20 transition-all"
                   placeholder="Search by name..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPage(1);
+                  }}
                 />
               </div>
               <button
@@ -129,7 +129,10 @@ const WorkerList = () => {
                     type="number"
                     placeholder="Min"
                     value={minPrice}
-                    onChange={(e) => setMinPrice(e.target.value)}
+                    onChange={(e) => {
+                      setMinPrice(e.target.value);
+                      setPage(1);
+                    }}
                     className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-4 text-white text-xs font-bold outline-none focus:border-neon-blue transition-all"
                   />
                   <span className="text-white/20">-</span>
@@ -137,7 +140,10 @@ const WorkerList = () => {
                     type="number"
                     placeholder="Max"
                     value={maxPrice}
-                    onChange={(e) => setMaxPrice(e.target.value)}
+                    onChange={(e) => {
+                      setMaxPrice(e.target.value);
+                      setPage(1);
+                    }}
                     className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-4 text-white text-xs font-bold outline-none focus:border-neon-blue transition-all"
                   />
                 </div>
@@ -150,7 +156,10 @@ const WorkerList = () => {
                   {[0, 3, 4, 4.5].map(rating => (
                     <button
                       key={rating}
-                      onClick={() => setMinRating(rating)}
+                      onClick={() => {
+                        setMinRating(rating);
+                        setPage(1);
+                      }}
                       className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all border ${minRating === rating ? 'bg-neon-purple border-neon-purple text-white shadow-glow-purple/20' : 'bg-white/5 border-white/10 text-white/40 hover:text-white'}`}
                     >
                       {rating === 0 ? 'ALL' : `${rating}+`}
@@ -163,7 +172,10 @@ const WorkerList = () => {
               <div className="space-y-3">
                 <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Availability</label>
                 <button
-                  onClick={() => setOnlyAvailable(!onlyAvailable)}
+                  onClick={() => {
+                    setOnlyAvailable(!onlyAvailable);
+                    setPage(1);
+                  }}
                   className={`w-full py-2.5 rounded-xl text-[10px] font-black transition-all border flex items-center justify-center gap-2 ${onlyAvailable ? 'bg-neon-teal border-neon-teal text-white shadow-glow-teal/20' : 'bg-white/5 border-white/10 text-white/40 hover:text-white'}`}
                 >
                   <div className={`w-2 h-2 rounded-full ${onlyAvailable ? 'bg-white animate-pulse' : 'bg-white/20'}`}></div>
@@ -180,7 +192,7 @@ const WorkerList = () => {
           <LoadingState message="Finding professionals..." />
         ) : error ? (
           <ErrorState message={error} onRetry={retryFetch} />
-        ) : filteredWorkers.length === 0 ? (
+        ) : workers.length === 0 ? (
           <EmptyState
             title="No professionals found"
             message="Try changing your search, price, rating, or availability filters."
@@ -189,65 +201,51 @@ const WorkerList = () => {
             icon={Search}
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-8">
-            {filteredWorkers.map(worker => (
-              <Link to={`/worker/${worker._id}`} key={worker._id} className="glass-premium rounded-3xl shadow-glow-blue/5 hover:shadow-glow-blue/20 transition-all overflow-hidden flex flex-col h-full group border border-white/10">
-                <div className="p-6 flex-grow">
-                  <div className="flex justify-between items-start mb-5">
-                    <div className="relative">
-                      <img
-                        src={worker.photoUrl || "https://ui-avatars.com/api/?name=" + worker.name + "&background=7F5AF0&color=fff"}
-                        alt={worker.name}
-                        className="w-16 h-16 rounded-full object-cover border-2 border-white/20 group-hover:scale-105 transition-transform"
-                      />
-                      <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#020617] ${worker.isAvailable ? 'bg-neon-green shadow-glow-green' : 'bg-gray-600'}`}></div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-8">
+              {workers.map(worker => (
+                <Link to={`/worker/${worker._id}`} key={worker._id} className="glass-premium rounded-3xl shadow-glow-blue/5 hover:shadow-glow-blue/20 transition-all overflow-hidden flex flex-col h-full group border border-white/10">
+                  <div className="p-6 flex-grow">
+                    <div className="flex justify-between items-start mb-5">
+                      <div className="relative">
+                        <img src={worker.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(worker.name)}&background=7F5AF0&color=fff`} alt={worker.name} className="w-16 h-16 rounded-full object-cover border-2 border-white/20 group-hover:scale-105 transition-transform" />
+                        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#020617] ${worker.isAvailable ? 'bg-neon-green shadow-glow-green' : 'bg-gray-600'}`}></div>
+                      </div>
+                      <span className={`text-[10px] uppercase font-bold px-3 py-1 rounded-full tracking-wider border ${worker.isAvailable ? 'bg-accent/10 text-accent border-accent/10' : 'bg-white/5 text-white/40 border-white/10'}`}>
+                        {worker.isAvailable ? 'Available' : 'Busy'}
+                      </span>
                     </div>
-                    {worker.isAvailable ? (
-                      <span className="bg-accent/10 backdrop-blur-sm text-accent text-[10px] uppercase font-bold px-3 py-1 rounded-full tracking-wider border border-accent/10">
-                        Available
-                      </span>
-                    ) : (
-                      <span className="bg-white/5 backdrop-blur-sm text-white/40 text-[9px] uppercase font-black px-3 py-1 rounded-full tracking-widest border border-white/10">
-                        Busy
-                      </span>
-                    )}
+                    <h3 className="font-black text-white text-xl font-poppins tracking-tight">{worker.name}</h3>
+                    <p className="text-xs font-bold text-white/60 uppercase tracking-widest mb-4">{worker.category?.name || 'Service Professional'}</p>
+                    <div className="flex items-center text-[10px] font-black text-white/40 uppercase tracking-widest mb-4 bg-white/5 inline-flex px-3 py-1.5 rounded-lg border border-white/5">
+                      <MapPin size={14} className="mr-1.5 text-neon-blue" />
+                      {Number.isFinite(worker.distance) ? `${worker.distance} km away` : 'Location available on request'}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {worker.skills?.slice(0, 3).map((skill) => (
+                        <span key={skill} className="text-[10px] bg-primary-start/5 text-primary-start font-bold uppercase tracking-wide px-2.5 py-1 rounded-md border border-primary-start/10">{skill}</span>
+                      ))}
+                    </div>
                   </div>
-
-                  <h3 className="font-black text-white text-xl font-poppins tracking-tight">{worker.name}</h3>
-                  <p className="text-xs font-bold text-white/60 uppercase tracking-widest mb-4">{worker.category?.name || 'Service Professional'}</p>
-
-                  <div className="flex items-center text-[10px] font-black text-white/40 uppercase tracking-widest mb-4 bg-white/5 inline-flex px-3 py-1.5 rounded-lg border border-white/5">
-                    <MapPin size={14} className="mr-1.5 text-neon-blue" />
-                    {worker.distance} km away
+                  <div className="border-t border-white/5 p-5 flex justify-between items-center bg-white/5 group-hover:bg-white/10 transition-colors">
+                    <div className="flex items-center text-amber-400 bg-amber-400/10 px-2 py-1 rounded-lg border border-amber-400/20">
+                      <Star size={16} fill="currentColor" />
+                      <span className="font-bold ml-1.5 text-white text-sm">{worker.rating || 0}</span>
+                      <span className="text-white/40 text-xs ml-1">({worker.reviewCount || 0})</span>
+                    </div>
+                    <div className="text-white font-black text-lg">৳{worker.pricePerHour || 0}<span className="text-white/40 text-sm font-normal">/hr</span></div>
                   </div>
-
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {worker.skills?.slice(0, 3).map((skill, i) => (
-                      <span key={i} className="text-[10px] bg-primary-start/5 backdrop-blur-sm text-primary-start font-bold uppercase tracking-wide px-2.5 py-1 rounded-md border border-primary-start/10">
-                        {skill}
-                      </span>
-                    ))}
-                    {worker.skills?.length > 3 && (
-                      <span className="text-[10px] bg-white/5 text-gray-400 font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-white/10">
-                        +{worker.skills.length - 3}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="border-t border-white/5 p-5 flex justify-between items-center bg-white/5 group-hover:bg-white/10 transition-colors">
-                  <div className="flex items-center text-amber-400 bg-amber-400/10 px-2 py-1 rounded-lg border border-amber-400/20">
-                    <Star size={16} fill="currentColor" />
-                    <span className="font-bold ml-1.5 text-white text-sm">{worker.rating}</span>
-                    <span className="text-white/40 text-xs ml-1">({worker.reviewCount})</span>
-                  </div>
-                  <div className="text-white font-black text-lg">
-                    ৳{worker.pricePerHour}<span className="text-white/40 text-sm font-normal">/hr</span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+            {pagination.totalPages > 1 && (
+              <div className="mt-10 flex items-center justify-center gap-4">
+                <button type="button" disabled={page <= 1} onClick={() => setPage(current => current - 1)} className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+                <span className="text-xs font-bold text-white/60">Page {page} of {pagination.totalPages}</span>
+                <button type="button" disabled={page >= pagination.totalPages} onClick={() => setPage(current => current + 1)} className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

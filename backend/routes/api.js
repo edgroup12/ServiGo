@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('node:crypto');
 const router = express.Router();
 const User = require('../models/User');
 const Category = require('../models/Category');
@@ -10,6 +11,18 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { auth, adminOnly } = require('../middleware/auth');
 
+const publicRoles = new Set(['customer', 'worker']);
+const bookingStatuses = new Set(['pending', 'confirmed', 'completed', 'declined']);
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const canAccessUser = (requester, userId) => (
+  requester.role === 'admin' || requester.id === userId
+);
+
+const isBookingParticipant = (booking, userId) => (
+  booking.customer.toString() === userId || booking.worker.toString() === userId
+);
+
 // Get all categories
 router.get('/categories', async (req, res) => {
   try {
@@ -20,29 +33,65 @@ router.get('/categories', async (req, res) => {
   }
 });
 
-// Get workers (with optional category filter and pagination)
+// Get workers (with server-side search, filtering, and bounded pagination)
 router.get('/workers', async (req, res) => {
   try {
-    const { category, page = 1, limit = 10 } = req.query;
+    const {
+      category,
+      search,
+      minPrice,
+      maxPrice,
+      minRating,
+      available,
+      page = 1,
+      limit = 12
+    } = req.query;
+    const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
+    const limitNumber = Math.min(50, Math.max(1, Number.parseInt(limit, 10) || 12));
     const query = { role: 'worker' };
+
     if (category) query.category = category;
+    if (typeof search === 'string' && search.trim()) {
+      const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.name = { $regex: escapedSearch, $options: 'i' };
+    }
+    if (available === 'true') query.isAvailable = true;
 
-    const pageNumber = parseInt(page);
-    const limitNumber = parseInt(limit);
+    const parsedMinPrice = Number(minPrice);
+    const parsedMaxPrice = Number(maxPrice);
+    if (minPrice !== undefined && Number.isFinite(parsedMinPrice) && parsedMinPrice >= 0) {
+      query.pricePerHour = { ...query.pricePerHour, $gte: parsedMinPrice };
+    }
+    if (maxPrice !== undefined && Number.isFinite(parsedMaxPrice) && parsedMaxPrice >= 0) {
+      query.pricePerHour = { ...query.pricePerHour, $lte: parsedMaxPrice };
+    }
+
+    const parsedMinRating = Number(minRating);
+    if (minRating !== undefined && Number.isFinite(parsedMinRating) && parsedMinRating >= 0 && parsedMinRating <= 5) {
+      query.rating = { $gte: parsedMinRating };
+    }
+
+    if (query.pricePerHour?.$gte > query.pricePerHour?.$lte) {
+      return res.status(400).json({ message: 'Minimum price cannot exceed maximum price' });
+    }
+
     const skip = (pageNumber - 1) * limitNumber;
-
-    const total = await User.countDocuments(query);
-    const workers = await User.find(query)
-      .populate('category')
-      .skip(skip)
-      .limit(limitNumber);
+    const [total, workers] = await Promise.all([
+      User.countDocuments(query),
+      User.find(query)
+        .populate('category')
+        .sort({ rating: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limitNumber)
+    ]);
 
     res.json({
       workers,
       pagination: {
         total,
         page: pageNumber,
-        totalPages: Math.ceil(total / limitNumber)
+        totalPages: Math.ceil(total / limitNumber),
+        limit: limitNumber
       }
     });
   } catch (error) {
@@ -61,9 +110,12 @@ router.get('/workers/:id', async (req, res) => {
   }
 });
 
-// Get single user
-router.get('/users/:id', async (req, res) => {
+// Get single user (self or admin only)
+router.get('/users/:id', auth, async (req, res) => {
   try {
+    if (!canAccessUser(req.user, req.params.id)) {
+      return res.status(403).json({ message: 'Unauthorized to view this user' });
+    }
     const user = await User.findById(req.params.id).populate('category');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
@@ -75,12 +127,19 @@ router.get('/users/:id', async (req, res) => {
 // Update worker availability
 router.patch('/users/:id/availability', auth, async (req, res) => {
   try {
-    const { isAvailable } = req.body;
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { isAvailable },
-      { new: true }
+    if (!canAccessUser(req.user, req.params.id)) {
+      return res.status(403).json({ message: 'Unauthorized to update availability' });
+    }
+    if (typeof req.body.isAvailable !== 'boolean') {
+      return res.status(400).json({ message: 'isAvailable must be a boolean' });
+    }
+
+    const user = await User.findOneAndUpdate(
+      { _id: req.params.id, role: 'worker' },
+      { isAvailable: req.body.isAvailable },
+      { new: true, runValidators: true }
     );
+    if (!user) return res.status(404).json({ message: 'Worker not found' });
     res.json(user);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -104,13 +163,38 @@ router.put('/workers/:id', auth, async (req, res) => {
     }
 
     const { bio, skills, pricePerHour, photoUrl, name, phone } = req.body;
+    const normalizedName = typeof name === 'string' ? name.trim() : '';
+    const normalizedSkills = Array.isArray(skills)
+      ? skills.map(skill => typeof skill === 'string' ? skill.trim() : '').filter(Boolean)
+      : [];
+    const parsedPrice = Number(pricePerHour);
 
-    const updatedWorker = await User.findByIdAndUpdate(
-      req.params.id,
-      { $set: { bio, skills, pricePerHour, photoUrl, name, phone } },
-      { new: true }
+    if (normalizedName.length < 2 || normalizedName.length > 80) {
+      return res.status(400).json({ message: 'Name must be between 2 and 80 characters' });
+    }
+    if (normalizedSkills.length > 20) {
+      return res.status(400).json({ message: 'A service listing can include at most 20 skills' });
+    }
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0 || parsedPrice > 100000) {
+      return res.status(400).json({ message: 'Hourly price must be between 0 and 100000' });
+    }
+
+    const updatedWorker = await User.findOneAndUpdate(
+      { _id: req.params.id, role: 'worker' },
+      {
+        $set: {
+          bio: typeof bio === 'string' ? bio.trim() : '',
+          skills: normalizedSkills,
+          pricePerHour: parsedPrice,
+          photoUrl: typeof photoUrl === 'string' ? photoUrl.trim() : '',
+          name: normalizedName,
+          phone: typeof phone === 'string' ? phone.trim() : ''
+        }
+      },
+      { new: true, runValidators: true }
     ).populate('category');
 
+    if (!updatedWorker) return res.status(404).json({ message: 'Worker not found' });
     res.json(updatedWorker);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -125,14 +209,26 @@ router.put('/customers/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized to update this profile' });
     }
 
-    const { name, phone, photoUrl } = req.body;
+    const { name, phone, photoUrl, address } = req.body;
+    const normalizedName = typeof name === 'string' ? name.trim() : '';
+    if (normalizedName.length < 2 || normalizedName.length > 80) {
+      return res.status(400).json({ message: 'Name must be between 2 and 80 characters' });
+    }
 
-    const updatedCustomer = await User.findByIdAndUpdate(
-      req.params.id,
-      { $set: { name, phone, photoUrl } },
-      { new: true }
+    const updatedCustomer = await User.findOneAndUpdate(
+      { _id: req.params.id, role: 'customer' },
+      {
+        $set: {
+          name: normalizedName,
+          phone: typeof phone === 'string' ? phone.trim() : '',
+          photoUrl: typeof photoUrl === 'string' ? photoUrl.trim() : '',
+          address: typeof address === 'string' ? address.trim() : ''
+        }
+      },
+      { new: true, runValidators: true }
     );
 
+    if (!updatedCustomer) return res.status(404).json({ message: 'Customer not found' });
     res.json(updatedCustomer);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -142,7 +238,43 @@ router.put('/customers/:id', auth, async (req, res) => {
 // Create a booking
 router.post('/bookings', auth, async (req, res) => {
   try {
-    const newBooking = new Booking(req.body);
+    if (req.user.role !== 'customer') {
+      return res.status(403).json({ message: 'Only customers can create bookings' });
+    }
+
+    const { worker, date, address, description, paymentMethod, transactionId } = req.body;
+    if (!worker || !date || !address?.trim() || !description?.trim() || !paymentMethod) {
+      return res.status(400).json({ message: 'Worker, date, address, description, and payment method are required' });
+    }
+    if (address.trim().length > 300 || description.trim().length > 1000) {
+      return res.status(400).json({ message: 'Address or description is too long' });
+    }
+
+    const bookingDate = new Date(date);
+    if (Number.isNaN(bookingDate.getTime()) || bookingDate <= new Date()) {
+      return res.status(400).json({ message: 'Booking date must be a valid future date' });
+    }
+
+    const selectedWorker = await User.findOne({ _id: worker, role: 'worker' });
+    if (!selectedWorker) return res.status(404).json({ message: 'Worker not found' });
+    if (!selectedWorker.isAvailable) {
+      return res.status(409).json({ message: 'This worker is currently unavailable' });
+    }
+    if (!Number.isFinite(selectedWorker.pricePerHour) || selectedWorker.pricePerHour < 0) {
+      return res.status(400).json({ message: 'This worker does not have a valid hourly rate' });
+    }
+
+    const estimatedHours = 2;
+    const newBooking = new Booking({
+      customer: req.user.id,
+      worker,
+      date: bookingDate,
+      address: address.trim(),
+      description: description.trim(),
+      estimatedPrice: selectedWorker.pricePerHour * estimatedHours,
+      paymentMethod,
+      transactionId: typeof transactionId === 'string' ? transactionId.trim() : undefined
+    });
     const savedBooking = await newBooking.save();
 
     // Create Notification for the worker
@@ -171,6 +303,9 @@ router.post('/bookings', auth, async (req, res) => {
 // Get bookings for a user (customer or worker)
 router.get('/bookings/user/:userId', auth, async (req, res) => {
   try {
+    if (!canAccessUser(req.user, req.params.userId)) {
+      return res.status(403).json({ message: 'Unauthorized to view these bookings' });
+    }
     const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -189,7 +324,29 @@ router.get('/bookings/user/:userId', auth, async (req, res) => {
 router.patch('/bookings/:id/status', auth, async (req, res) => {
   try {
     const { status } = req.body;
-    const booking = await Booking.findByIdAndUpdate(req.params.id, { status }, { new: true }).populate('worker');
+    if (!bookingStatuses.has(status) || status === 'pending') {
+      return res.status(400).json({ message: 'Invalid booking status' });
+    }
+
+    const existingBooking = await Booking.findById(req.params.id);
+    if (!existingBooking) return res.status(404).json({ message: 'Booking not found' });
+    if (req.user.role !== 'admin' && existingBooking.worker.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Only the assigned worker can update this booking' });
+    }
+
+    const allowedTransitions = {
+      pending: new Set(['confirmed', 'declined']),
+      confirmed: new Set(['completed']),
+      completed: new Set(),
+      declined: new Set()
+    };
+    if (!allowedTransitions[existingBooking.status]?.has(status)) {
+      return res.status(400).json({ message: `Cannot change booking from ${existingBooking.status} to ${status}` });
+    }
+
+    existingBooking.status = status;
+    const booking = await existingBooking.save();
+    await booking.populate('worker');
 
     if (booking) {
       let title = '';
@@ -234,6 +391,11 @@ router.patch('/bookings/:id/status', auth, async (req, res) => {
 // Get messages for a booking
 router.get('/messages/:bookingId', auth, async (req, res) => {
   try {
+    const booking = await Booking.findById(req.params.bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    if (req.user.role !== 'admin' && !isBookingParticipant(booking, req.user.id)) {
+      return res.status(403).json({ message: 'Unauthorized to view these messages' });
+    }
     const messages = await Message.find({ bookingId: req.params.bookingId }).sort({ timestamp: 1 });
     res.json(messages);
   } catch (error) {
@@ -244,11 +406,25 @@ router.get('/messages/:bookingId', auth, async (req, res) => {
 // Save a new message
 router.post('/messages', auth, async (req, res) => {
   try {
-    const newMessage = new Message(req.body);
+    const { bookingId, content } = req.body;
+    if (!bookingId || typeof content !== 'string' || !content.trim()) {
+      return res.status(400).json({ message: 'Booking and message content are required' });
+    }
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    if (!isBookingParticipant(booking, req.user.id)) {
+      return res.status(403).json({ message: 'Unauthorized to message this booking' });
+    }
+
+    const newMessage = new Message({
+      bookingId,
+      senderId: req.user.id,
+      senderModel: req.user.role === 'customer' ? 'Customer' : 'Worker',
+      content: content.trim()
+    });
     const savedMessage = await newMessage.save();
 
     // Create Notification for the recipient
-    const booking = await Booking.findById(savedMessage.bookingId);
     if (booking) {
       const recipientId = savedMessage.senderId.toString() === booking.customer.toString()
         ? booking.worker
@@ -292,6 +468,9 @@ router.post('/auth/logout', auth, async (req, res) => {
 // Get Analytics for Dashboard Charts
 router.get('/analytics/:userId', auth, async (req, res) => {
   try {
+    if (!canAccessUser(req.user, req.params.userId)) {
+      return res.status(403).json({ message: 'Unauthorized to view these analytics' });
+    }
     const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -343,33 +522,35 @@ router.get('/analytics/:userId', auth, async (req, res) => {
 // REAL AUTH ROUTES
 router.post('/auth/register', async (req, res) => {
   try {
-    const { name, email, password, role, category } = req.body;
+    const { name, email, password, role = 'customer', category, phone } = req.body;
+    const normalizedName = typeof name === 'string' ? name.trim() : '';
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
 
-    // Input validation
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
+    if (normalizedName.length < 2 || normalizedName.length > 80) {
+      return res.status(400).json({ message: 'Name must be between 2 and 80 characters' });
     }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(normalizedEmail)) {
       return res.status(400).json({ message: 'Please provide a valid email address' });
     }
-
-    if (password.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    if (typeof password !== 'string' || password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters and include a letter and number' });
+    }
+    if (!publicRoles.has(role)) {
+      return res.status(400).json({ message: 'Role must be customer or worker' });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
     const newUser = new User({
-      name,
-      email,
-      password, // Will be hashed by pre-save hook
-      role: role || 'customer',
-      category: category || null
+      name: normalizedName,
+      email: normalizedEmail,
+      password,
+      role,
+      phone: typeof phone === 'string' ? phone.trim() : undefined,
+      category: role === 'worker' && category ? category : null
     });
 
     await newUser.save();
@@ -398,8 +579,13 @@ router.post('/auth/register', async (req, res) => {
 router.post('/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    if (typeof email !== 'string' || typeof password !== 'string' || !emailRegex.test(email.trim())) {
+      return res.status(400).json({ message: 'A valid email and password are required' });
+    }
 
-    const user = await User.findOne({ email }).populate('category');
+    const user = await User.findOne({ email: email.trim().toLowerCase() })
+      .select('+password')
+      .populate('category');
     if (!user) return res.status(401).json({ message: 'Invalid email or password' });
 
     // Use model method to compare password
@@ -425,6 +611,57 @@ router.post('/auth/login', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+router.post('/auth/forgot-password', async (req, res) => {
+  try {
+    const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Please provide a valid email address' });
+    }
+
+    const user = await User.findOne({ email });
+    let resetToken;
+    if (user) {
+      resetToken = crypto.randomBytes(32).toString('hex');
+      user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+      user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
+      await user.save({ validateModifiedOnly: true });
+    }
+
+    const response = { message: 'If an account exists for that email, password reset instructions have been created.' };
+    if (resetToken && process.env.NODE_ENV !== 'production') response.resetToken = resetToken;
+    res.json(response);
+  } catch (error) {
+    res.status(500).json({ message: 'Unable to start password reset' });
+  }
+});
+
+router.post('/auth/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (typeof token !== 'string' || token.length < 32) {
+      return res.status(400).json({ message: 'A valid reset token is required' });
+    }
+    if (typeof password !== 'string' || password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters and include a letter and number' });
+    }
+
+    const resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({
+      resetPasswordToken,
+      resetPasswordExpires: { $gt: Date.now() }
+    }).select('+resetPasswordToken +resetPasswordExpires');
+    if (!user) return res.status(400).json({ message: 'Reset token is invalid or expired' });
+
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+    res.json({ message: 'Password reset successfully. You can now sign in.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Unable to reset password' });
   }
 });
 
@@ -530,6 +767,9 @@ router.delete('/admin/users/:id', auth, adminOnly, async (req, res) => {
 // Get notifications for a user
 router.get('/notifications/:userId', auth, async (req, res) => {
   try {
+    if (!canAccessUser(req.user, req.params.userId)) {
+      return res.status(403).json({ message: 'Unauthorized to view these notifications' });
+    }
     const notifications = await Notification.find({ recipientId: req.params.userId })
       .sort({ timestamp: -1 })
       .limit(50);
@@ -542,11 +782,12 @@ router.get('/notifications/:userId', auth, async (req, res) => {
 // Mark single notification as read
 router.patch('/notifications/:id/read', auth, async (req, res) => {
   try {
-    const notification = await Notification.findByIdAndUpdate(
-      req.params.id,
+    const notification = await Notification.findOneAndUpdate(
+      { _id: req.params.id, recipientId: req.user.id },
       { isRead: true },
       { new: true }
     );
+    if (!notification) return res.status(404).json({ message: 'Notification not found' });
     res.json(notification);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -556,6 +797,9 @@ router.patch('/notifications/:id/read', auth, async (req, res) => {
 // Mark all as read
 router.patch('/notifications/user/:userId/read-all', auth, async (req, res) => {
   try {
+    if (!canAccessUser(req.user, req.params.userId)) {
+      return res.status(403).json({ message: 'Unauthorized to update these notifications' });
+    }
     await Notification.updateMany(
       { recipientId: req.params.userId, isRead: false },
       { isRead: true }

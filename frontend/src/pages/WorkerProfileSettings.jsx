@@ -75,8 +75,7 @@ const WorkerProfileSettings = ({ currentUser, setCurrentUser }) => {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      console.error('Error updating profile:', error);
-      toast('Failed to update profile. Please try again.', 'error');
+      toast(error.response?.data?.message || 'Failed to update service listing. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
@@ -96,10 +95,10 @@ const WorkerProfileSettings = ({ currentUser, setCurrentUser }) => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
           <div>
             <h1 className="text-4xl font-black text-white font-poppins tracking-tighter mb-2">
-              Profile <span className="text-gradient">Settings</span>
+              Service <span className="text-gradient">Listing</span>
             </h1>
             <p className="text-white/60 font-bold text-sm tracking-wide uppercase">
-              Update your professional information and public profile
+              Publish and update the service customers can discover and book
             </p>
           </div>
 
@@ -131,6 +130,8 @@ const WorkerProfileSettings = ({ currentUser, setCurrentUser }) => {
                       value={formData.name}
                       onChange={handleChange}
                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white font-bold outline-none focus:border-neon-blue focus:ring-4 focus:ring-neon-blue/10 transition-all"
+                      minLength="2"
+                      maxLength="80"
                       required
                     />
                   </div>
@@ -161,6 +162,7 @@ const WorkerProfileSettings = ({ currentUser, setCurrentUser }) => {
                     onChange={handleChange}
                     rows="4"
                     className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white font-bold outline-none focus:border-neon-blue focus:ring-4 focus:ring-neon-blue/10 transition-all resize-none"
+                    maxLength="1000"
                     placeholder="Tell clients about your experience and expertise..."
                   ></textarea>
                 </div>
@@ -184,6 +186,8 @@ const WorkerProfileSettings = ({ currentUser, setCurrentUser }) => {
                       value={formData.pricePerHour}
                       onChange={handleChange}
                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white font-bold outline-none focus:border-neon-purple focus:ring-4 focus:ring-neon-purple/10 transition-all"
+                      min="0"
+                      max="100000"
                       required
                     />
                   </div>
