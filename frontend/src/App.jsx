@@ -1,25 +1,39 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Link, useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock } from 'lucide-react';
-import Home from './pages/Home';
-import WorkerList from './pages/WorkerList';
-import WorkerProfile from './pages/WorkerProfile';
-import Booking from './pages/Booking';
-import CustomerDashboard from './pages/CustomerDashboard';
-import WorkerDashboard from './pages/WorkerDashboard';
-import WorkerProfileSettings from './pages/WorkerProfileSettings';
-import CustomerProfileSettings from './pages/CustomerProfileSettings';
-import Register from './pages/Register';
-import AdminDashboard from './pages/AdminDashboard';
 import Navbar from './components/Navbar';
-import PaymentStatus from './components/PaymentStatus';
 import ToastProvider from './components/Toast';
+import ProtectedRoute from './components/ProtectedRoute';
+
+// Lazy-loaded pages — each becomes its own JS chunk
+const Home = lazy(() => import('./pages/Home'));
+const WorkerList = lazy(() => import('./pages/WorkerList'));
+const WorkerProfile = lazy(() => import('./pages/WorkerProfile'));
+const Booking = lazy(() => import('./pages/Booking'));
+const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard'));
+const WorkerDashboard = lazy(() => import('./pages/WorkerDashboard'));
+const WorkerProfileSettings = lazy(() => import('./pages/WorkerProfileSettings'));
+const CustomerProfileSettings = lazy(() => import('./pages/CustomerProfileSettings'));
+const Register = lazy(() => import('./pages/Register'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const PaymentStatus = lazy(() => import('./components/PaymentStatus'));
+
+// Fallback shown while lazy chunks are downloading
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-[var(--bg-color)]">
+    <div className="flex flex-col items-center gap-4">
+      <div className="w-12 h-12 border-4 border-neon-blue/20 border-t-neon-blue rounded-full animate-spin" />
+      <p className="text-white/30 text-[10px] font-black uppercase tracking-widest">Loading...</p>
+    </div>
+  </div>
+);
 
 const Login = ({ setCurrentUser }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,9 +50,11 @@ const Login = ({ setCurrentUser }) => {
       }
       const data = await res.json();
       const userData = { ...data.user, token: data.token };
+      const requestedPath = location.state?.from?.pathname;
       setCurrentUser(userData);
-      if (userData.role === 'admin') navigate('/admin-dashboard');
-      else navigate(userData.role === 'customer' ? '/customer-dashboard' : '/worker-dashboard');
+      if (requestedPath) navigate(requestedPath, { replace: true });
+      else if (userData.role === 'admin') navigate('/admin-dashboard', { replace: true });
+      else navigate(userData.role === 'customer' ? '/customer-dashboard' : '/worker-dashboard', { replace: true });
     } catch (err) {
       console.error('[Login] Error:', err);
       setError(err.message || 'Login failed. Please check your credentials.');
@@ -151,22 +167,60 @@ const AppContent = () => {
       <div className="relative z-10 flex flex-col min-h-screen">
         {!isDashboard && <Navbar currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />}
         <main className="flex-grow">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login setCurrentUser={setCurrentUser} />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/services/:categoryId" element={<WorkerList />} />
-            <Route path="/worker/:workerId" element={<WorkerProfile />} />
-            <Route path="/book/:workerId" element={<Booking currentUser={currentUser} />} />
-            <Route path="/customer-dashboard" element={<CustomerDashboard currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />} />
-            <Route path="/customer-dashboard/profile" element={<CustomerProfileSettings currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />} />
-            <Route path="/customer-dashboard/*" element={<CustomerDashboard currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />} />
-            <Route path="/worker-dashboard" element={<WorkerDashboard currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />} />
-            <Route path="/worker-dashboard/profile" element={<WorkerProfileSettings currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />} />
-            <Route path="/worker-dashboard/*" element={<WorkerDashboard currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />} />
-            <Route path="/admin-dashboard" element={<AdminDashboard currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />} />
-            <Route path="/payment/:status" element={<PaymentStatus />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<Login setCurrentUser={setCurrentUser} />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/services/:categoryId" element={<WorkerList />} />
+              <Route path="/worker/:workerId" element={<WorkerProfile />} />
+              <Route path="/book/:workerId" element={(
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['customer']}>
+                  <Booking currentUser={currentUser} />
+                </ProtectedRoute>
+              )} />
+              <Route path="/customer-dashboard" element={(
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['customer']}>
+                  <CustomerDashboard currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />
+                </ProtectedRoute>
+              )} />
+              <Route path="/customer-dashboard/profile" element={(
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['customer']}>
+                  <CustomerProfileSettings currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />
+                </ProtectedRoute>
+              )} />
+              <Route path="/customer-dashboard/*" element={(
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['customer']}>
+                  <CustomerDashboard currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />
+                </ProtectedRoute>
+              )} />
+              <Route path="/worker-dashboard" element={(
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['worker']}>
+                  <WorkerDashboard currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />
+                </ProtectedRoute>
+              )} />
+              <Route path="/worker-dashboard/profile" element={(
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['worker']}>
+                  <WorkerProfileSettings currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />
+                </ProtectedRoute>
+              )} />
+              <Route path="/worker-dashboard/*" element={(
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['worker']}>
+                  <WorkerDashboard currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />
+                </ProtectedRoute>
+              )} />
+              <Route path="/admin-dashboard" element={(
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['admin']}>
+                  <AdminDashboard currentUser={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme} />
+                </ProtectedRoute>
+              )} />
+              <Route path="/payment/:status" element={(
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['customer']}>
+                  <PaymentStatus />
+                </ProtectedRoute>
+              )} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </div>

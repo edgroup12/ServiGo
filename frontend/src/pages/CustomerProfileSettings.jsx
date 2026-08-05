@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/Toast';
 import {
   User,
-  Mail,
   Phone,
   Save,
   ArrowLeft,
@@ -31,12 +30,16 @@ const CustomerProfileSettings = ({ currentUser, setCurrentUser }) => {
       return;
     }
 
-    setFormData({
-      name: currentUser.name || '',
-      phone: currentUser.phone || '',
-      address: currentUser.address || '',
-      photoUrl: currentUser.photoUrl || ''
-    });
+    const request = window.setTimeout(() => {
+      setFormData({
+        name: currentUser.name || '',
+        phone: currentUser.phone || '',
+        address: currentUser.address || '',
+        photoUrl: currentUser.photoUrl || ''
+      });
+    }, 0);
+
+    return () => window.clearTimeout(request);
   }, [currentUser, navigate]);
 
   const handleChange = (e) => {

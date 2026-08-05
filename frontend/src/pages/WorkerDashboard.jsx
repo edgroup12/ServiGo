@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -8,8 +8,6 @@ import {
   DollarSign,
   Briefcase,
   Clock,
-  ArrowUpRight,
-  TrendingUp,
   User,
   MessageSquare
 } from 'lucide-react';
@@ -20,12 +18,14 @@ import DashboardLayout from '../components/dashboard/DashboardLayout';
 import StatCard from '../components/dashboard/StatCard';
 import ChatBox from '../components/ChatBox';
 import LocationBroadcaster from '../components/dashboard/LocationBroadcaster';
+import { ErrorState, LoadingState } from '../components/AsyncState';
 
 const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [activeChat, setActiveChat] = useState(null);
   const [isAvailable, setIsAvailable] = useState(currentUser?.isAvailable ?? true);
 
@@ -44,24 +44,29 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
     }
   };
 
-  useEffect(() => {
-    if (!currentUser || currentUser.role !== 'worker') {
-      navigate('/login');
-      return;
+  const fetchBookings = useCallback(async () => {
+    try {
+      const res = await api.get(`/bookings/user/${currentUser._id}`);
+      setBookings(res.data);
+      setError('');
+    } catch (requestError) {
+      console.error('Error fetching bookings', requestError);
+      setError('Your jobs could not be loaded. Check your connection and try again.');
+    } finally {
+      setLoading(false);
     }
+  }, [currentUser._id]);
 
-    const fetchBookings = async () => {
-      try {
-        const res = await api.get(`/bookings/user/${currentUser._id}`);
-        setBookings(res.data);
-      } catch (error) {
-        console.error('Error fetching bookings', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  useEffect(() => {
+    const request = window.setTimeout(fetchBookings, 0);
+    return () => window.clearTimeout(request);
+  }, [fetchBookings]);
+
+  const retryFetch = () => {
+    setLoading(true);
+    setError('');
     fetchBookings();
-  }, [currentUser, navigate]);
+  };
 
   const updateBookingStatus = async (bookingId, status) => {
     try {
@@ -86,10 +91,15 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
   if (loading) {
     return (
       <DashboardLayout user={currentUser} setCurrentUser={setCurrentUser}>
-        <div className="min-h-[60vh] flex flex-col items-center justify-center">
-          <div className="w-16 h-16 border-4 border-neon-blue/20 border-t-neon-blue rounded-full animate-spin mb-4"></div>
-          <p className="text-white/40 font-black uppercase tracking-widest text-xs">Loading your portal...</p>
-        </div>
+        <LoadingState message="Loading your portal..." />
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout user={currentUser} setCurrentUser={setCurrentUser}>
+        <ErrorState message={error} onRetry={retryFetch} />
       </DashboardLayout>
     );
   }
@@ -139,9 +149,9 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
   return (
     <DashboardLayout user={currentUser} setCurrentUser={setCurrentUser}>
       {/* Hero Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 sm:mb-12">
         <div>
-          <h1 className="text-4xl font-black text-white font-poppins tracking-tighter mb-2">
+          <h1 className="text-3xl sm:text-4xl font-black text-white font-poppins tracking-tighter mb-2">
             Worker <span className="text-gradient">Portal</span>
           </h1>
           <p className="text-white/60 font-bold text-sm tracking-wide uppercase">
@@ -149,17 +159,17 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-4">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:gap-4">
           <button
             onClick={() => navigate('/worker-dashboard/profile')}
-            className="flex items-center gap-2 px-6 py-4 rounded-2xl text-sm font-bold transition-all hover:scale-105 active:scale-95 bg-white/5 border border-white/10 text-white hover:bg-white/10"
+            className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-4 rounded-2xl text-sm font-bold transition-all hover:scale-105 active:scale-95 bg-white/5 border border-white/10 text-white hover:bg-white/10"
           >
             <User size={18} className="text-neon-purple" />
             Profile Settings
           </button>
           <button
             onClick={toggleAvailability}
-            className={`flex items-center gap-2 px-6 py-4 rounded-2xl text-sm font-bold transition-all hover:scale-105 active:scale-95 text-white ${isAvailable ? 'bg-gradient-primary shadow-glow-blue hover:opacity-90' : 'bg-white/10 border border-white/20 text-white/50'}`}
+            className={`flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-4 rounded-2xl text-sm font-bold transition-all hover:scale-105 active:scale-95 text-white ${isAvailable ? 'bg-gradient-primary shadow-glow-blue hover:opacity-90' : 'bg-white/10 border border-white/20 text-white/50'}`}
           >
             <span className={`w-2 h-2 rounded-full ${isAvailable ? 'bg-white animate-pulse' : 'bg-white/20'}`}></span>
             {isAvailable ? 'Available for Hire' : 'Currently Unavailable'}
@@ -168,7 +178,7 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 mb-8 sm:mb-12">
         {stats.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
@@ -198,7 +208,7 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
               <div className="space-y-6">
                 {pendingRequests.map(req => (
                   <div key={req._id} className="glass-card border-gradient-premium overflow-hidden group">
-                    <div className="p-8 flex flex-col md:flex-row justify-between gap-8">
+                    <div className="p-5 sm:p-8 flex flex-col md:flex-row justify-between gap-6 sm:gap-8">
                       <div className="flex items-center gap-5">
                         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neon-teal/20 to-neon-blue/20 border border-white/10 flex items-center justify-center text-neon-teal text-2xl font-black shadow-glow-teal">
                           {req.customer?.name?.charAt(0) || 'C'}
@@ -217,7 +227,7 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-left md:text-right">
                         <p className="text-2xl font-black text-white font-poppins">৳{req.estimatedPrice}</p>
                         <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mt-1 bg-white/5 px-2 py-1 rounded-lg border border-white/5 inline-block mb-2 block">{req.paymentMethod}</p>
                         <button

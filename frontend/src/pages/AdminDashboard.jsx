@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../components/Toast';
 import {
   Users,
@@ -7,76 +7,77 @@ import {
   DollarSign,
   Trash2,
   ShieldCheck,
-  TrendingUp,
   Search,
   Filter,
-  UserCheck,
-  UserX,
   BarChart3
 } from 'lucide-react';
 import api from '../services/api';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import StatCard from '../components/dashboard/StatCard';
+import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState';
 
 const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => {
   const { toast } = useToast();
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
-  const [bookings, setBookings] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [categoryDistribution, setCategoryDistribution] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
 
+  const fetchAdminData = useCallback(async () => {
+    try {
+      const [statsRes, usersRes, analyticsRes] = await Promise.all([
+        api.get('/admin/stats'),
+        api.get('/admin/users'),
+        api.get(`/analytics/${currentUser._id}`)
+      ]);
+      setError('');
+      setStats(statsRes.data);
+      setUsers(usersRes.data.users || usersRes.data);
+      setChartData(analyticsRes.data?.trends || []);
+      setCategoryDistribution(analyticsRes.data?.categoryDistribution || []);
+    } catch (requestError) {
+      console.error('Error fetching admin data:', requestError);
+      setError('Admin data could not be loaded. Check the API connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser._id]);
+
   useEffect(() => {
-    const fetchAdminData = async () => {
-      try {
-        const [statsRes, usersRes, bookingsRes, analyticsRes] = await Promise.all([
-          api.get('/admin/stats'),
-          api.get('/admin/users'),
-          api.get('/admin/bookings'),
-          api.get(`/analytics/${currentUser._id}`)
-        ]);
-        setStats(statsRes.data);
-        setUsers(usersRes.data.users || usersRes.data);
-        setBookings(bookingsRes.data.bookings || bookingsRes.data);
-        if (analyticsRes.data) {
-          setChartData(analyticsRes.data.trends || []);
-          setCategoryDistribution(analyticsRes.data.categoryDistribution || []);
-        }
-      } catch (error) {
-        console.error('Error fetching admin data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const request = window.setTimeout(fetchAdminData, 0);
+    return () => window.clearTimeout(request);
+  }, [fetchAdminData]);
+
+  const retryFetch = () => {
+    setLoading(true);
+    setError('');
     fetchAdminData();
-  }, [currentUser?._id]);
+  };
 
   const handleDeleteUser = async (id) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
         await api.delete(`/admin/users/${id}`);
         setUsers(users.filter(u => u._id !== id));
-      } catch (error) {
+      } catch {
         toast('Failed to delete user', 'error');
       }
     }
   };
 
   const filteredUsers = users.filter(u =>
-    u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchQuery.toLowerCase())
+    u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    u.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (loading) {
     return (
       <DashboardLayout user={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme}>
-        <div className="min-h-[60vh] flex flex-col items-center justify-center">
-          <div className="w-16 h-16 border-4 border-neon-blue/20 border-t-neon-blue rounded-full animate-spin mb-4"></div>
-          <p className="text-white/40 font-black uppercase tracking-widest text-xs">Loading Admin Portal...</p>
-        </div>
+        <LoadingState message="Loading admin portal..." />
       </DashboardLayout>
     );
   }
@@ -92,6 +93,14 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
     ? chartData.map((val, i) => ({ name: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i] || `D${i + 1}`, val: Math.min(val, 100) }))
     : [];
 
+  if (error) {
+    return (
+      <DashboardLayout user={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme}>
+        <ErrorState message={error} onRetry={retryFetch} />
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout user={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme}>
       <div className="space-y-8 pb-12">
@@ -103,7 +112,7 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
               <ShieldCheck size={14} className="text-neon-green" /> Platform Management System
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full gap-2 overflow-x-auto pb-1 md:w-auto">
             <button
               onClick={() => setActiveTab('overview')}
               className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'overview' ? 'bg-neon-blue text-white shadow-glow-blue' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
@@ -122,7 +131,7 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
         {activeTab === 'overview' ? (
           <>
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {statCards.map((stat, i) => (
                 <StatCard key={i} {...stat} />
               ))}
@@ -130,7 +139,7 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
-              <div className="glass-premium p-8 rounded-[2.5rem] border-white/5">
+              <div className="glass-premium p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border-white/5">
                 <div className="flex justify-between items-center mb-8">
                   <h3 className="text-lg font-black text-white uppercase tracking-tighter">Growth Analytics</h3>
                   <div className="bg-neon-blue/10 px-3 py-1 rounded-full border border-neon-blue/20">
@@ -158,7 +167,7 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
                 </div>
               </div>
 
-              <div className="glass-premium p-8 rounded-[2.5rem] border-white/5 overflow-hidden">
+              <div className="glass-premium p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border-white/5 overflow-hidden">
                 <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-8">Category Distribution</h3>
                 <div className="space-y-6">
                   {categoryDistribution.length > 0 ? (
@@ -191,15 +200,15 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
                 <h3 className="text-xl font-black text-white uppercase tracking-tighter">User Directory</h3>
                 <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mt-1">Managing {users.length} registered members</p>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="relative">
+              <div className="flex w-full items-center gap-3 md:w-auto md:gap-4">
+                <div className="relative flex-1 md:flex-none">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={16} />
                   <input
                     type="text"
                     placeholder="Search name or email..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white outline-none focus:border-neon-blue/50 transition-all w-64 font-bold"
+                    className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white outline-none focus:border-neon-blue/50 transition-all w-full md:w-64 font-bold"
                   />
                 </div>
                 <button className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-white/40 hover:text-white transition-all">
@@ -210,7 +219,7 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
 
             {/* User Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              <table className="w-full min-w-[700px] text-left">
                 <thead>
                   <tr className="border-b border-white/5 bg-white/[0.02]">
                     <th className="px-8 py-6 text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">User Profile</th>
@@ -220,7 +229,9 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {filteredUsers.map((user) => (
+                  {filteredUsers.length === 0 ? (
+                    <tr><td colSpan="4" className="p-8"><EmptyState title="No users found" message="No users match your current search." compact /></td></tr>
+                  ) : filteredUsers.map((user) => (
                     <tr key={user._id} className="hover:bg-white/[0.02] transition-colors group">
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-4">
@@ -250,7 +261,7 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
                         </div>
                       </td>
                       <td className="px-8 py-6 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <button className="p-2 bg-white/5 rounded-lg border border-white/10 text-white/40 hover:text-white transition-all">
                             <ShieldCheck size={16} />
                           </button>

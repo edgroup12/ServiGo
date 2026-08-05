@@ -1,18 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { Star, MapPin, Filter, Search, ChevronLeft } from 'lucide-react';
 import api from '../services/api';
+import { EmptyState, ErrorState, LoadingState } from '../components/AsyncState';
 
 const WorkerList = () => {
   const { categoryId } = useParams();
   const [searchParams] = useSearchParams();
   const searchFromUrl = searchParams.get('search') || '';
-  
+
   const [workers, setWorkers] = useState([]);
-  const [filteredWorkers, setFilteredWorkers] = useState([]);
   const [searchQuery, setSearchQuery] = useState(searchFromUrl);
   const [categoryName, setCategoryName] = useState('All Services');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   // New Filter States
   const [minPrice, setMinPrice] = useState('');
@@ -21,61 +22,63 @@ const WorkerList = () => {
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
-  useEffect(() => {
-    const fetchWorkers = async () => {
-      try {
-        setLoading(true);
-        let url = '/workers';
-        if (categoryId && categoryId !== 'all') {
-          url += `?category=${categoryId}`;
-          const catRes = await api.get('/categories');
-          const cat = catRes.data.find(c => c._id === categoryId);
-          if (cat) setCategoryName(cat.name);
-        }
-        
-        const res = await api.get(url);
-        setWorkers(res.data.workers || res.data);
-      } catch (error) {
-        console.error('Error fetching workers', error);
-      } finally {
-        setLoading(false);
+  const fetchWorkers = useCallback(async () => {
+    try {
+      let url = '/workers';
+      if (categoryId && categoryId !== 'all') {
+        url += `?category=${categoryId}`;
+        const catRes = await api.get('/categories');
+        const cat = catRes.data.find(c => c._id === categoryId);
+        if (cat) setCategoryName(cat.name);
+      } else {
+        setCategoryName('All Services');
       }
-    };
-    
-    fetchWorkers();
+
+      const res = await api.get(url);
+      setWorkers(res.data.workers || res.data);
+    } catch (requestError) {
+      console.error('Error fetching workers', requestError);
+      setError('Professionals could not be loaded. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [categoryId]);
 
   useEffect(() => {
+    const request = window.setTimeout(fetchWorkers, 0);
+    return () => window.clearTimeout(request);
+  }, [fetchWorkers]);
+
+  const filteredWorkers = useMemo(() => {
     let filtered = [...workers];
 
-    // 1. Search Query Filter
     if (searchQuery) {
-      filtered = filtered.filter(w => 
-        w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        w.category?.name.toLowerCase().includes(searchQuery.toLowerCase())
+      filtered = filtered.filter(w =>
+        w.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        w.category?.name?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
+    if (minPrice) filtered = filtered.filter(w => w.pricePerHour >= Number(minPrice));
+    if (maxPrice) filtered = filtered.filter(w => w.pricePerHour <= Number(maxPrice));
+    if (minRating > 0) filtered = filtered.filter(w => w.rating >= minRating);
+    if (onlyAvailable) filtered = filtered.filter(w => w.isAvailable);
 
-    // 2. Price Range Filter
-    if (minPrice) {
-      filtered = filtered.filter(w => w.pricePerHour >= Number(minPrice));
-    }
-    if (maxPrice) {
-      filtered = filtered.filter(w => w.pricePerHour <= Number(maxPrice));
-    }
-
-    // 3. Rating Filter
-    if (minRating > 0) {
-      filtered = filtered.filter(w => w.rating >= minRating);
-    }
-
-    // 4. Availability Filter
-    if (onlyAvailable) {
-      filtered = filtered.filter(w => w.isAvailable);
-    }
-
-    setFilteredWorkers(filtered);
+    return filtered;
   }, [searchQuery, workers, minPrice, maxPrice, minRating, onlyAvailable]);
+
+  const retryFetch = () => {
+    setLoading(true);
+    setError('');
+    fetchWorkers();
+  };
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setMinPrice('');
+    setMaxPrice('');
+    setMinRating(0);
+    setOnlyAvailable(false);
+  };
 
   return (
     <div className="min-h-screen pb-16 bg-premium-radial">
@@ -85,27 +88,27 @@ const WorkerList = () => {
           <Link to="/" className="inline-flex items-center text-white/50 hover:text-white mb-6 transition font-black uppercase tracking-widest text-[10px]">
             <ChevronLeft size={18} className="mr-1" /> Back to Home
           </Link>
-          
+
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
               <h1 className="text-3xl font-black text-white font-poppins tracking-tighter">{categoryName}</h1>
               <p className="text-white/60 mt-1.5 text-xs font-bold uppercase tracking-wide">Found {filteredWorkers.length} premium professionals nearby</p>
             </div>
-            
-            <div className="flex w-full md:w-auto gap-3">
+
+            <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto">
               <div className="relative flex-grow md:w-64">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search size={16} className="text-white/40" />
                 </div>
-                <input 
-                  type="text" 
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 outline-none text-white placeholder-white/30 font-bold focus:ring-2 focus:ring-neon-blue/20 transition-all" 
-                  placeholder="Search by name..." 
+                <input
+                  type="text"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 outline-none text-white placeholder-white/30 font-bold focus:ring-2 focus:ring-neon-blue/20 transition-all"
+                  placeholder="Search by name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <button 
+              <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center justify-center gap-2 border px-4 py-2.5 rounded-xl transition shadow-sm font-bold text-xs uppercase tracking-widest ${showFilters ? 'bg-neon-blue border-neon-blue text-white shadow-glow-blue/20' : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'}`}
               >
@@ -122,17 +125,17 @@ const WorkerList = () => {
               <div className="space-y-3">
                 <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Price Range (৳)</label>
                 <div className="flex items-center gap-3">
-                  <input 
-                    type="number" 
-                    placeholder="Min" 
+                  <input
+                    type="number"
+                    placeholder="Min"
                     value={minPrice}
                     onChange={(e) => setMinPrice(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-4 text-white text-xs font-bold outline-none focus:border-neon-blue transition-all"
                   />
                   <span className="text-white/20">-</span>
-                  <input 
-                    type="number" 
-                    placeholder="Max" 
+                  <input
+                    type="number"
+                    placeholder="Max"
                     value={maxPrice}
                     onChange={(e) => setMaxPrice(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-4 text-white text-xs font-bold outline-none focus:border-neon-blue transition-all"
@@ -174,19 +177,27 @@ const WorkerList = () => {
 
       <div className="container mx-auto px-4 mt-8">
         {loading ? (
-          <div className="flex justify-center py-32">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-start"></div>
-          </div>
+          <LoadingState message="Finding professionals..." />
+        ) : error ? (
+          <ErrorState message={error} onRetry={retryFetch} />
+        ) : filteredWorkers.length === 0 ? (
+          <EmptyState
+            title="No professionals found"
+            message="Try changing your search, price, rating, or availability filters."
+            actionLabel="Clear filters"
+            onAction={clearFilters}
+            icon={Search}
+          />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-8">
             {filteredWorkers.map(worker => (
               <Link to={`/worker/${worker._id}`} key={worker._id} className="glass-premium rounded-3xl shadow-glow-blue/5 hover:shadow-glow-blue/20 transition-all overflow-hidden flex flex-col h-full group border border-white/10">
                 <div className="p-6 flex-grow">
                   <div className="flex justify-between items-start mb-5">
                     <div className="relative">
-                      <img 
-                        src={worker.photoUrl || "https://ui-avatars.com/api/?name=" + worker.name + "&background=7F5AF0&color=fff"} 
-                        alt={worker.name} 
+                      <img
+                        src={worker.photoUrl || "https://ui-avatars.com/api/?name=" + worker.name + "&background=7F5AF0&color=fff"}
+                        alt={worker.name}
                         className="w-16 h-16 rounded-full object-cover border-2 border-white/20 group-hover:scale-105 transition-transform"
                       />
                       <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#020617] ${worker.isAvailable ? 'bg-neon-green shadow-glow-green' : 'bg-gray-600'}`}></div>
@@ -201,15 +212,15 @@ const WorkerList = () => {
                       </span>
                     )}
                   </div>
-                  
+
                   <h3 className="font-black text-white text-xl font-poppins tracking-tight">{worker.name}</h3>
                   <p className="text-xs font-bold text-white/60 uppercase tracking-widest mb-4">{worker.category?.name || 'Service Professional'}</p>
-                  
+
                   <div className="flex items-center text-[10px] font-black text-white/40 uppercase tracking-widest mb-4 bg-white/5 inline-flex px-3 py-1.5 rounded-lg border border-white/5">
                     <MapPin size={14} className="mr-1.5 text-neon-blue" />
                     {worker.distance} km away
                   </div>
-                  
+
                   <div className="flex flex-wrap gap-2 mt-2">
                     {worker.skills?.slice(0, 3).map((skill, i) => (
                       <span key={i} className="text-[10px] bg-primary-start/5 backdrop-blur-sm text-primary-start font-bold uppercase tracking-wide px-2.5 py-1 rounded-md border border-primary-start/10">
@@ -223,7 +234,7 @@ const WorkerList = () => {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="border-t border-white/5 p-5 flex justify-between items-center bg-white/5 group-hover:bg-white/10 transition-colors">
                   <div className="flex items-center text-amber-400 bg-amber-400/10 px-2 py-1 rounded-lg border border-amber-400/20">
                     <Star size={16} fill="currentColor" />

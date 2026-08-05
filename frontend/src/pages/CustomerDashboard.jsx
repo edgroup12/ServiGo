@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
-  Users,
   CheckCircle2,
   Briefcase,
   Plus,
@@ -17,33 +16,40 @@ import RecentBookings from '../components/dashboard/RecentBookings';
 import ChatBox from '../components/ChatBox';
 import LiveTrackingMap from '../components/dashboard/LiveTrackingMap';
 import { X } from 'lucide-react';
+import { ErrorState, LoadingState } from '../components/AsyncState';
 
 const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [activeChat, setActiveChat] = useState(null);
   const [trackingBooking, setTrackingBooking] = useState(null);
 
-  useEffect(() => {
-    if (!currentUser || currentUser.role !== 'customer') {
-      navigate('/login');
-      return;
+  const fetchBookings = useCallback(async () => {
+    try {
+      const res = await api.get(`/bookings/user/${currentUser._id}`);
+      setBookings(res.data);
+      setError('');
+    } catch (requestError) {
+      console.error('Error fetching bookings', requestError);
+      setError('Your bookings could not be loaded. Check your connection and try again.');
+    } finally {
+      setLoading(false);
     }
+  }, [currentUser._id]);
 
-    const fetchBookings = async () => {
-      try {
-        const res = await api.get(`/bookings/user/${currentUser._id}`);
-        setBookings(res.data);
-      } catch (error) {
-        console.error('Error fetching bookings', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  useEffect(() => {
+    const request = window.setTimeout(fetchBookings, 0);
+    return () => window.clearTimeout(request);
+  }, [fetchBookings]);
+
+  const retryFetch = () => {
+    setLoading(true);
+    setError('');
     fetchBookings();
-  }, [currentUser, navigate]);
+  };
 
   if (!currentUser) return null;
 
@@ -92,9 +98,9 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
   return (
     <DashboardLayout user={currentUser} setCurrentUser={setCurrentUser}>
       {/* Hero Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 sm:mb-12">
         <div>
-          <h1 className="text-4xl font-black text-white font-poppins tracking-tighter mb-2">
+          <h1 className="text-3xl sm:text-4xl font-black text-white font-poppins tracking-tighter mb-2">
             Welcome back, <span className="text-gradient">{currentUser.name.split(' ')[0]}</span> 👋
           </h1>
           <p className="text-white/60 font-bold text-sm tracking-wide uppercase">
@@ -102,12 +108,12 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
           </p>
         </div>
 
-        <div className="flex gap-4">
-          <button onClick={() => navigate('/services/all')} className="flex items-center gap-2 px-6 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-sm font-bold transition-all hover:scale-105 active:scale-95 text-white/90">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:gap-4">
+          <button onClick={() => navigate('/services/all')} className="flex min-h-12 w-full items-center justify-center gap-2 px-5 py-3 sm:w-auto sm:px-6 sm:py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-sm font-bold transition-all hover:scale-105 active:scale-95 text-white/90">
             <Plus size={18} className="text-neon-blue" />
             New Booking
           </button>
-          <button onClick={() => navigate('/services/all')} className="flex items-center gap-2 px-6 py-4 bg-gradient-primary shadow-glow-blue hover:opacity-90 rounded-2xl text-sm font-bold transition-all hover:scale-105 active:scale-95 text-white">
+          <button onClick={() => navigate('/services/all')} className="flex min-h-12 w-full items-center justify-center gap-2 px-5 py-3 sm:w-auto sm:px-6 sm:py-4 bg-gradient-primary shadow-glow-blue hover:opacity-90 rounded-2xl text-sm font-bold transition-all hover:scale-105 active:scale-95 text-white">
             <Plus size={18} />
             Explore Services
           </button>
@@ -115,7 +121,7 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 mb-8 sm:mb-12">
         {stats.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
@@ -126,9 +132,9 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
 
       {/* Recent Activity Table */}
       {loading ? (
-        <div className="glass-card p-20 flex justify-center items-center border-gradient-premium">
-          <div className="w-12 h-12 border-4 border-neon-blue/20 border-t-neon-blue rounded-full animate-spin"></div>
-        </div>
+        <LoadingState message="Loading your bookings..." compact />
+      ) : error ? (
+        <ErrorState message={error} onRetry={retryFetch} compact />
       ) : (
         <RecentBookings
           bookings={bookings}
@@ -142,13 +148,13 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-10">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => setTrackingBooking(null)}></div>
           <div className="relative w-full max-w-4xl glass-card border-gradient-premium overflow-hidden animate-in fade-in zoom-in duration-300">
-            <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+            <div className="p-4 sm:p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-neon-blue/20 flex items-center justify-center text-neon-blue shadow-glow-blue/20">
                   <Plus className="rotate-45" size={20} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-black text-white font-poppins tracking-tight">Live Worker Tracking</h3>
+                  <h3 className="text-base sm:text-xl font-black text-white font-poppins tracking-tight">Live Worker Tracking</h3>
                   <p className="text-[10px] font-black text-neon-blue uppercase tracking-widest">Job #{trackingBooking._id.slice(-6)}</p>
                 </div>
               </div>
@@ -159,9 +165,9 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
                 <X size={24} />
               </button>
             </div>
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <LiveTrackingMap bookingId={trackingBooking._id} />
-              <div className="mt-6 flex justify-between items-center px-4">
+              <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center sm:px-4">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-neon-blue/20 to-neon-purple/20 border border-white/10 flex items-center justify-center text-neon-blue text-xl font-black">
                     {trackingBooking.worker?.name?.charAt(0) || 'W'}
@@ -176,7 +182,7 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
                     setActiveChat(trackingBooking);
                     setTrackingBooking(null);
                   }}
-                  className="bg-gradient-primary px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-glow-blue/20 hover:scale-105 transition-all"
+                  className="w-full sm:w-auto bg-gradient-primary px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-glow-blue/20 hover:scale-105 transition-all"
                 >
                   Chat with Worker
                 </button>

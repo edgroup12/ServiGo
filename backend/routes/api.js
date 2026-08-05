@@ -95,6 +95,14 @@ router.put('/workers/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized to update this profile' });
     }
 
+    // Admin updating: preserve role and category if not provided
+    if (req.user.role === 'admin' && req.user.id !== req.params.id) {
+      const existing = await User.findById(req.params.id);
+      if (!existing) return res.status(404).json({ message: 'Worker not found' });
+      // Don't allow admin to change role through this endpoint
+      delete req.body.role;
+    }
+
     const { bio, skills, pricePerHour, photoUrl, name, phone } = req.body;
 
     const updatedWorker = await User.findByIdAndUpdate(

@@ -1,14 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Calendar, Clock, MapPin, CreditCard, AlertCircle, ChevronLeft, CheckCircle2 } from 'lucide-react';
+import { Calendar, MapPin, CreditCard, AlertCircle, ChevronLeft, CheckCircle2 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../components/Toast';
+import { ErrorState, LoadingState } from '../components/AsyncState';
 
 const Booking = ({ currentUser }) => {
   const { workerId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [worker, setWorker] = useState(null);
+  const [loadingWorker, setLoadingWorker] = useState(true);
+  const [workerError, setWorkerError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     date: '',
@@ -18,23 +22,29 @@ const Booking = ({ currentUser }) => {
     paymentMethod: 'Cash'
   });
 
-  useEffect(() => {
-    if (!currentUser || currentUser.role !== 'customer') {
-      toast('Please login as a Customer to book a service.', 'warning');
-      navigate('/login');
-      return;
+  const fetchWorker = useCallback(async () => {
+    try {
+      const res = await api.get(`/workers/${workerId}`);
+      setWorker(res.data);
+      setWorkerError('');
+    } catch (requestError) {
+      console.error('Error fetching worker', requestError);
+      setWorkerError('This professional could not be loaded. They may no longer be available.');
+    } finally {
+      setLoadingWorker(false);
     }
+  }, [workerId]);
 
-    const fetchWorker = async () => {
-      try {
-        const res = await api.get(`/workers/${workerId}`);
-        setWorker(res.data);
-      } catch (error) {
-        console.error('Error fetching worker', error);
-      }
-    };
+  useEffect(() => {
+    const request = window.setTimeout(fetchWorker, 0);
+    return () => window.clearTimeout(request);
+  }, [fetchWorker]);
+
+  const retryWorker = () => {
+    setLoadingWorker(true);
+    setWorkerError('');
     fetchWorker();
-  }, [workerId, currentUser, navigate]);
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -44,6 +54,7 @@ const Booking = ({ currentUser }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
     try {
       const bookingData = {
         customer: currentUser._id,
@@ -60,10 +71,14 @@ const Booking = ({ currentUser }) => {
     } catch (error) {
       console.error('Error creating booking:', error);
       toast('Failed to create booking. Please try again.', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  if (!worker) return <div className="flex justify-center items-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-start"></div></div>;
+  if (loadingWorker) return <LoadingState message="Loading booking details..." />;
+  if (workerError) return <div className="min-h-screen bg-premium-radial px-4 py-24"><div className="mx-auto max-w-3xl"><ErrorState message={workerError} onRetry={retryWorker} /></div></div>;
+  if (!worker) return null;
 
   return (
     <div className="min-h-screen pb-16 bg-premium-radial">
@@ -149,7 +164,7 @@ const Booking = ({ currentUser }) => {
                 <h3 className="text-xl font-black text-white mb-5 font-poppins flex items-center gap-2 uppercase tracking-tight">
                   <CreditCard size={22} className="text-neon-blue shadow-glow-blue" /> Payment Method
                 </h3>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
                   {['Cash', 'bKash', 'Nagad'].map((method) => (
                     <label
                       key={method}
@@ -174,8 +189,8 @@ const Booking = ({ currentUser }) => {
                 </div>
               </div>
 
-              <button type="submit" className="w-full bg-gradient-primary hover:opacity-90 text-white font-bold py-4 rounded-2xl shadow-soft-lg transition-transform hover:scale-[1.01] text-lg font-poppins">
-                Confirm Booking
+              <button type="submit" disabled={submitting} className="w-full bg-gradient-primary hover:opacity-90 text-white font-bold py-4 rounded-2xl shadow-soft-lg transition-transform hover:scale-[1.01] text-lg font-poppins disabled:cursor-not-allowed disabled:opacity-60">
+                {submitting ? 'Creating Booking...' : 'Confirm Booking'}
               </button>
             </form>
           </div>

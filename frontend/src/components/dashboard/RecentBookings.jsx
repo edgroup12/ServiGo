@@ -1,6 +1,8 @@
 import { format } from 'date-fns';
-import { Eye, MoreHorizontal, Clock, CheckCircle2, XCircle, MessageSquare, MapPin } from 'lucide-react';
+import { Eye, MoreHorizontal, Clock, CheckCircle2, XCircle, MessageSquare, MapPin, CalendarPlus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../Toast';
+import { EmptyState } from '../AsyncState';
 const StatusBadge = ({ status }) => {
   const configs = {
     pending: { color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/20', icon: Clock, shadow: 'shadow-[0_0_15px_rgba(251,191,36,0.2)]' },
@@ -22,9 +24,25 @@ const StatusBadge = ({ status }) => {
 
 const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  if (bookings.length === 0) {
+    return (
+      <div id="recent-bookings">
+        <EmptyState
+          title="No bookings yet"
+          message="Book a trusted professional and your service history will appear here."
+          actionLabel="Explore services"
+          onAction={() => navigate('/services/all')}
+          icon={CalendarPlus}
+        />
+      </div>
+    );
+  }
+
   return (
     <div id="recent-bookings" className="glass-card overflow-hidden border-gradient-premium">
-      <div className="p-8 border-b border-white/5 flex items-center justify-between">
+      <div className="p-5 sm:p-8 border-b border-white/5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-xl font-black text-white font-poppins tracking-tight">Recent Bookings</h3>
           <p className="text-white/60 text-xs font-bold uppercase tracking-wider mt-1">Transaction overview</p>
@@ -37,7 +55,7 @@ const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full min-w-[760px] text-left border-collapse">
           <thead>
             <tr className="bg-white/[0.02]">
               <th className="px-8 py-5 text-[10px] font-black text-white/40 uppercase tracking-widest">Service Provider</th>
@@ -48,7 +66,7 @@ const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {bookings.length > 0 ? bookings.map((booking, idx) => (
+            {bookings.map((booking) => (
               <tr
                 key={booking._id}
                 className="hover:bg-white/[0.03] transition-colors group"
@@ -107,13 +125,7 @@ const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
                   </div>
                 </td>
               </tr>
-            )) : (
-              <tr>
-                <td colSpan="5" className="px-8 py-20 text-center text-gray-500 font-bold uppercase tracking-widest text-xs">
-                  No recent bookings found
-                </td>
-              </tr>
-            )}
+            ))}
           </tbody>
         </table>
       </div>

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Bell, CheckCircle2, MessageSquare, AlertCircle, Clock, Trash2, ExternalLink } from 'lucide-react';
+import { Bell, CheckCircle2, MessageSquare, AlertCircle, Clock, ExternalLink, X } from 'lucide-react';
 import api from '../../services/api';
 import socket from '../../services/socket';
 
 const NotificationCenter = ({ currentUser, onClose }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -13,8 +14,10 @@ const NotificationCenter = ({ currentUser, onClose }) => {
       try {
         const res = await api.get(`/notifications/${currentUser._id}`);
         setNotifications(res.data);
-      } catch (error) {
-        console.error('Error fetching notifications:', error);
+        setError('');
+      } catch (requestError) {
+        console.error('Error fetching notifications:', requestError);
+        setError('Notifications could not be loaded.');
       } finally {
         setLoading(false);
       }
@@ -31,7 +34,7 @@ const NotificationCenter = ({ currentUser, onClose }) => {
     return () => {
       socket.off('receive_notification', handleNotification);
     };
-  }, [currentUser?._id]);
+  }, [currentUser]);
 
   const markAsRead = async (id) => {
     try {
@@ -62,7 +65,7 @@ const NotificationCenter = ({ currentUser, onClose }) => {
   };
 
   return (
-    <div className="absolute right-0 mt-4 w-96 glass-premium border border-white/10 rounded-[2rem] shadow-2xl z-[100] overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+    <div className="fixed left-3 right-3 top-20 mt-2 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-4 sm:w-96 glass-premium border border-white/10 rounded-[1.5rem] sm:rounded-[2rem] shadow-2xl z-[100] overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
       <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-neon-blue/10 flex items-center justify-center text-neon-blue shadow-glow-blue/10">
@@ -70,7 +73,7 @@ const NotificationCenter = ({ currentUser, onClose }) => {
           </div>
           <h3 className="text-white font-black text-sm tracking-tight">Notifications</h3>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {notifications.some(n => !n.isRead) && (
             <button
               onClick={markAllAsRead}
@@ -79,6 +82,9 @@ const NotificationCenter = ({ currentUser, onClose }) => {
               Mark all read
             </button>
           )}
+          <button onClick={onClose} className="p-1.5 text-white/40 hover:text-white" aria-label="Close notifications">
+            <X size={16} />
+          </button>
         </div>
       </div>
 
@@ -87,6 +93,11 @@ const NotificationCenter = ({ currentUser, onClose }) => {
           <div className="p-12 flex justify-center">
             <div className="w-8 h-8 border-2 border-neon-blue/20 border-t-neon-blue rounded-full animate-spin"></div>
           </div>
+        ) : error ? (
+          <div className="p-8 text-center" role="alert">
+            <AlertCircle size={30} className="text-red-400 mx-auto mb-3" />
+            <p className="text-red-300 text-xs font-bold">{error}</p>
+          </div>
         ) : notifications.length === 0 ? (
           <div className="p-12 text-center">
             <Bell size={32} className="text-white/10 mx-auto mb-4" />
@@ -94,9 +105,9 @@ const NotificationCenter = ({ currentUser, onClose }) => {
           </div>
         ) : (
           <div className="divide-y divide-white/5">
-            {notifications.map((notification) => (
+            {notifications.map((notification, index) => (
               <div
-                key={notification._id || Math.random()}
+                key={notification._id || `${notification.timestamp}-${index}`}
                 className={`p-5 hover:bg-white/[0.03] transition-colors relative group ${!notification.isRead ? 'bg-white/[0.01]' : ''}`}
                 onClick={() => !notification.isRead && markAsRead(notification._id)}
               >

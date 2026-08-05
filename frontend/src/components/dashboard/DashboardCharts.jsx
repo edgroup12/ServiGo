@@ -8,7 +8,7 @@ const DashboardCharts = ({ currentUser }) => {
 
   useEffect(() => {
     if (!currentUser) return;
-    
+
     const fetchAnalytics = async () => {
       try {
         const res = await api.get(`/analytics/${currentUser._id}`);
@@ -20,7 +20,7 @@ const DashboardCharts = ({ currentUser }) => {
         setLoading(false);
       }
     };
-    
+
     fetchAnalytics();
   }, [currentUser]);
 
@@ -31,7 +31,7 @@ const DashboardCharts = ({ currentUser }) => {
     const y = 200 - (val / maxTrend) * 150; // Scale to fit between y=50 and y=200
     return `${x},${y}`;
   });
-  
+
   const pathD = `M${points[0]} ` + points.slice(1).map(p => `L${p}`).join(' ');
   const areaD = `${pathD} L600,200 L0,200 Z`;
 
@@ -42,7 +42,7 @@ const DashboardCharts = ({ currentUser }) => {
     { stroke: '#06b6d4', bg: 'bg-[#06b6d4]' },
     { stroke: '#10b981', bg: 'bg-[#10b981]' }
   ];
-  
+
   const circumference = 251; // 2 * Math.PI * 40
 
   let currentOffset = 0;
@@ -50,16 +50,16 @@ const DashboardCharts = ({ currentUser }) => {
     const strokeDasharray = `${(cat.percentage / 100) * circumference} ${circumference}`;
     const strokeDashoffset = -currentOffset;
     currentOffset += (cat.percentage / 100) * circumference;
-    
+
     return (
-      <circle 
+      <circle
         key={cat.name}
-        cx="50" cy="50" r="40" 
-        fill="transparent" 
-        stroke={colors[i % colors.length].stroke} 
-        strokeWidth="12" 
-        strokeDasharray={strokeDasharray} 
-        strokeDashoffset={strokeDashoffset} 
+        cx="50" cy="50" r="40"
+        fill="transparent"
+        stroke={colors[i % colors.length].stroke}
+        strokeWidth="12"
+        strokeDasharray={strokeDasharray}
+        strokeDashoffset={strokeDashoffset}
         className="transition-all duration-1000"
       />
     );
@@ -73,14 +73,14 @@ const DashboardCharts = ({ currentUser }) => {
     dayLabels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
   }
 
-  const topCategory = categories.length > 0 
+  const topCategory = categories.length > 0
     ? categories.reduce((prev, current) => (prev.percentage > current.percentage) ? prev : current)
     : { name: 'None', percentage: 0 };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
       {/* Line Chart */}
-      <div className="glass-card p-8 border-gradient-premium relative overflow-hidden group">
+      <div className="glass-card p-5 sm:p-8 border-gradient-premium relative overflow-hidden group">
         <div className="flex justify-between items-center mb-8">
           <div>
             <h3 className="text-xl font-black text-white font-poppins tracking-tight">Booking Trends</h3>
@@ -103,22 +103,22 @@ const DashboardCharts = ({ currentUser }) => {
                 <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
               </linearGradient>
             </defs>
-            <path 
-              d={loading ? "M0,200 L600,200 Z" : areaD} 
+            <path
+              d={loading ? "M0,200 L600,200 Z" : areaD}
               fill="url(#chartGradient)"
               className="transition-all duration-1000"
             />
-            <path 
-              d={loading ? "M0,200 L600,200" : pathD} 
-              fill="none" 
-              stroke="#6366f1" 
-              strokeWidth="4" 
-              strokeLinecap="round" 
+            <path
+              d={loading ? "M0,200 L600,200" : pathD}
+              fill="none"
+              stroke="#6366f1"
+              strokeWidth="4"
+              strokeLinecap="round"
               strokeLinejoin="round"
               className="transition-all duration-1000"
             />
           </svg>
-          
+
           {dayLabels.map((day, i) => (
             <div key={`${day}-${i}`} className="relative z-10 text-[10px] font-black text-white/40 uppercase tracking-widest pb-2">
               {day}
@@ -128,7 +128,7 @@ const DashboardCharts = ({ currentUser }) => {
       </div>
 
       {/* Pie Chart / Distribution */}
-      <div className="glass-card p-8 border-gradient-premium relative overflow-hidden group">
+      <div className="glass-card p-5 sm:p-8 border-gradient-premium relative overflow-hidden group">
         <div className="flex justify-between items-center mb-8">
           <div>
             <h3 className="text-xl font-black text-white font-poppins tracking-tight">Category Distribution</h3>
@@ -136,8 +136,8 @@ const DashboardCharts = ({ currentUser }) => {
           </div>
         </div>
 
-        <div className="flex items-center justify-center h-64 gap-12">
-          <div className="relative w-48 h-48">
+        <div className="flex flex-col sm:flex-row items-center justify-center min-h-64 gap-6 sm:gap-12">
+          <div className="relative w-40 h-40 sm:w-48 sm:h-48 shrink-0">
             <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
               {categories.length > 0 ? pieCircles : (
                 <circle cx="50" cy="50" r="40" fill="transparent" stroke="#333" strokeWidth="12" />
@@ -149,7 +149,7 @@ const DashboardCharts = ({ currentUser }) => {
             </div>
           </div>
 
-          <div className="space-y-4 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+          <div className="grid w-full grid-cols-2 gap-4 sm:block sm:w-auto sm:space-y-4 sm:max-h-48 sm:overflow-y-auto custom-scrollbar sm:pr-2">
             {categories.length > 0 ? categories.slice(0, 4).map((item, i) => (
               <div key={item.name} className="flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${colors[i % colors.length].bg} shadow-lg`}></div>

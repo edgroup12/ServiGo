@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, X, User, CheckCheck, Clock, Sparkles } from 'lucide-react';
+import { Send, X, CheckCheck, Sparkles } from 'lucide-react';
 import api from '../services/api';
 import socket from '../services/socket';
 
@@ -128,8 +128,8 @@ const ChatBox = ({ booking, currentUser, onClose }) => {
                 <div key={i} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
                   <div className={`max-w-[80%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                     <div className={`px-4 py-3 rounded-2xl text-[13px] font-bold leading-relaxed ${isMe
-                        ? 'bg-gradient-primary text-white shadow-glow-blue/20 rounded-tr-none'
-                        : 'bg-white/5 text-white/90 border border-white/10 rounded-tl-none backdrop-blur-md'
+                      ? 'bg-gradient-primary text-white shadow-glow-blue/20 rounded-tr-none'
+                      : 'bg-white/5 text-white/90 border border-white/10 rounded-tl-none backdrop-blur-md'
                       }`}>
                       {msg.content}
                     </div>

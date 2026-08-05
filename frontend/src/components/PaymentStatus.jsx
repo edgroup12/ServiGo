@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
-import Navbar from './dashboard/Navbar';
 
 const PaymentStatus = () => {
   const { status } = useParams();

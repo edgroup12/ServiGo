@@ -1,9 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 
 const DashboardLayout = ({ children, user, setCurrentUser, theme, toggleTheme }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    document.body.style.overflow = isSidebarOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isSidebarOpen]);
 
   return (
     <div className="min-h-screen transition-colors duration-500" style={{ background: 'var(--bg-radial)', backgroundColor: 'var(--bg-color)' }}>
@@ -33,11 +40,11 @@ const DashboardLayout = ({ children, user, setCurrentUser, theme, toggleTheme })
           toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         />
 
-        <main className="flex-grow p-4 md:p-8 lg:p-12 mt-4 max-w-7xl mx-auto w-full">
+        <main className="flex-grow min-w-0 w-full max-w-7xl mx-auto p-4 sm:p-6 md:p-8 lg:p-12 mt-2 sm:mt-4">
           {children}
         </main>
 
-        <footer className="p-10 border-t border-[var(--glass-border)] text-center">
+        <footer className="p-5 sm:p-10 border-t border-[var(--glass-border)] text-center">
           <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-[0.2em]">
             © 2026 ServiGo Premium Dashboard • Designed for Excellence
           </p>
@@ -49,6 +56,10 @@ const DashboardLayout = ({ children, user, setCurrentUser, theme, toggleTheme })
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[45] animate-in fade-in duration-300"
           onClick={() => setIsSidebarOpen(false)}
+          role="button"
+          tabIndex={0}
+          aria-label="Close navigation menu"
+          onKeyDown={(event) => event.key === 'Escape' && setIsSidebarOpen(false)}
         ></div>
       )}
     </div>

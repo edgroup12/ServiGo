@@ -27,12 +27,12 @@ io.on('connection', (socket) => {
   console.log('User connected to chat/tracking:', socket.id);
 
   socket.on('join_user', (userId) => {
-    socket.join(userId);
+    socket.join(String(userId));
     console.log(`User joined personal room: ${userId}`);
   });
 
   socket.on('join_booking', (bookingId) => {
-    socket.join(bookingId);
+    socket.join(String(bookingId));
     console.log(`User joined booking room: ${bookingId}`);
   });
 
@@ -67,20 +67,30 @@ const startServer = async () => {
 
     let mongoUri = process.env.MONGODB_URI;
 
-    if (!mongoUri) {
-      if (process.env.NODE_ENV === 'production') {
-        console.error('FATAL: MONGODB_URI is required in production');
-        process.exit(1);
+    if (mongoUri) {
+      try {
+        console.log('Attempting to connect to MongoDB...');
+        await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 });
+        console.log('MongoDB connected successfully to primary URI');
+      } catch (dbErr) {
+        console.warn('Failed to connect to process.env.MONGODB_URI:', dbErr.message);
+        if (process.env.NODE_ENV === 'production') {
+          throw dbErr;
+        }
+        console.log('Falling back to in-memory MongoDB for local development...');
+        mongoUri = null;
       }
+    }
+
+    if (!mongoUri) {
       const mongoServer = await MongoMemoryServer.create();
       mongoUri = mongoServer.getUri();
       console.log('Started in-memory MongoDB at', mongoUri);
-    }
-
-    await mongoose.connect(mongoUri);
-    console.log('MongoDB connected');
-
-    if (process.env.SEED_DB === 'true') {
+      await mongoose.connect(mongoUri);
+      console.log('In-memory MongoDB connected');
+      console.log('Seeding in-memory database...');
+      await seedDatabase();
+    } else if (process.env.SEED_DB === 'true') {
       console.log('Seeding database...');
       await seedDatabase();
     }

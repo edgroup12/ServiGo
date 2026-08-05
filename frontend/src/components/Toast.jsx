@@ -3,6 +3,8 @@ import { X, CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react'
 
 const ToastContext = createContext(null);
 
+// The provider and hook intentionally share one module as a small UI subsystem.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useToast = () => {
     const context = useContext(ToastContext);
     if (!context) {
