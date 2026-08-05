@@ -1,9 +1,10 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Link, useNavigate } from 'react-router-dom';
-import { LogIn, Mail, Lock } from 'lucide-react';
+import { LogIn, Mail, Lock, Home as HomeIcon } from 'lucide-react';
 import Navbar from './components/Navbar';
 import ToastProvider from './components/Toast';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy-loaded pages — each becomes its own JS chunk
 const Home = lazy(() => import('./pages/Home'));
@@ -136,6 +137,25 @@ const Login = ({ setCurrentUser }) => {
   );
 };
 
+const NotFound = () => (
+  <section className="flex min-h-[70vh] items-center justify-center px-4 py-16 text-center">
+    <div className="w-full max-w-lg rounded-[2rem] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-8 shadow-2xl sm:p-10">
+      <p className="text-sm font-black uppercase tracking-[0.3em] text-neon-blue">404</p>
+      <h1 className="mt-3 text-3xl font-black text-[var(--text-main)] sm:text-4xl">Page not found</h1>
+      <p className="mt-4 text-sm font-medium leading-relaxed text-[var(--text-muted)]">
+        The page may have moved or the address may be incorrect.
+      </p>
+      <Link
+        to="/"
+        className="mx-auto mt-7 flex min-h-12 w-fit items-center justify-center gap-2 rounded-2xl bg-gradient-primary px-6 py-3 text-sm font-black uppercase tracking-wider text-white"
+      >
+        <HomeIcon size={18} aria-hidden="true" />
+        Back home
+      </Link>
+    </div>
+  </section>
+);
+
 const AppContent = () => {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -143,21 +163,35 @@ const AppContent = () => {
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('theme') || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
   const location = useLocation();
 
-  // Persist user session
+  // Persist preferences when storage is available (private modes can deny access).
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('servigo_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('servigo_user');
+    try {
+      if (currentUser) {
+        localStorage.setItem('servigo_user', JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem('servigo_user');
+      }
+    } catch {
+      // The in-memory session remains usable for this tab.
     }
   }, [currentUser]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
+    try {
+      localStorage.setItem('theme', theme);
+    } catch {
+      // Theme still applies for this tab.
+    }
   }, [theme]);
 
   const toggleTheme = () => {
@@ -187,7 +221,7 @@ const AppContent = () => {
               <Route path="/worker/:workerId" element={<WorkerProfile />} />
               <Route path="/book/:workerId" element={(
                 <ProtectedRoute currentUser={currentUser} allowedRoles={['customer']}>
-                  <Booking currentUser={currentUser} />
+                  <Booking />
                 </ProtectedRoute>
               )} />
               <Route path="/customer-dashboard" element={(
@@ -230,6 +264,7 @@ const AppContent = () => {
                   <PaymentStatus />
                 </ProtectedRoute>
               )} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
         </main>
@@ -240,11 +275,13 @@ const AppContent = () => {
 
 const App = () => {
   return (
-    <Router>
-      <ToastProvider>
-        <AppContent />
-      </ToastProvider>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </Router>
+    </ErrorBoundary>
   );
 };
 

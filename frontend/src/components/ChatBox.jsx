@@ -2,12 +2,17 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, X, CheckCheck, Sparkles } from 'lucide-react';
 import api from '../services/api';
 import socket from '../services/socket';
+import { useToast } from './Toast';
 
 const ChatBox = ({ booking, currentUser, onClose }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const messagesEndRef = useRef(null);
+  const { toast } = useToast();
 
   const otherParty = currentUser.role === 'customer' ? booking.worker : booking.customer;
   const bookingId = booking._id;
@@ -19,10 +24,11 @@ const ChatBox = ({ booking, currentUser, onClose }) => {
   useEffect(() => {
     const fetchMessages = async () => {
       try {
+        setError('');
         const res = await api.get(`/messages/${bookingId}`);
-        setMessages(res.data);
-      } catch (error) {
-        console.error('Error fetching messages:', error);
+        setMessages(Array.isArray(res.data) ? res.data : []);
+      } catch (requestError) {
+        setError(requestError.response?.data?.message || 'Messages could not be loaded.');
       } finally {
         setLoading(false);
         setTimeout(scrollToBottom, 100);
@@ -46,7 +52,7 @@ const ChatBox = ({ booking, currentUser, onClose }) => {
     return () => {
       socket.off('receive_message', handleReceiveMessage);
     };
-  }, [bookingId]);
+  }, [bookingId, retryKey]);
 
   useEffect(() => {
     scrollToBottom();
@@ -58,31 +64,31 @@ const ChatBox = ({ booking, currentUser, onClose }) => {
 
     const messageData = {
       bookingId,
-      senderId: currentUser._id,
-      senderModel: currentUser.role === 'customer' ? 'Customer' : 'Worker',
-      content: newMessage,
-      timestamp: new Date().toISOString()
+      content: newMessage.trim()
     };
 
     try {
-      await api.post('/messages', messageData);
-      socket.emit('send_message', messageData);
+      setSending(true);
+      const response = await api.post('/messages', messageData);
+      socket.emit('send_message', response.data);
       setNewMessage('');
-    } catch (error) {
-      console.error('Error sending message:', error);
+    } catch (requestError) {
+      toast(requestError.response?.data?.message || 'Message could not be sent. Please try again.', 'error');
+    } finally {
+      setSending(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="glass-premium w-full max-w-lg h-[600px] flex flex-col rounded-[2.5rem] border-white/10 shadow-glow-blue/20 overflow-hidden animate-in zoom-in-95 duration-300">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-2 backdrop-blur-sm animate-in fade-in duration-300 sm:p-4">
+      <div className="glass-premium flex h-[min(92dvh,600px)] w-full max-w-lg flex-col overflow-hidden rounded-[1.75rem] border-white/10 shadow-glow-blue/20 animate-in zoom-in-95 duration-300 sm:rounded-[2.5rem]">
 
         {/* Chat Header */}
-        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+        <div className="flex items-center justify-between border-b border-white/5 bg-white/[0.02] p-4 sm:p-6">
           <div className="flex items-center gap-4">
             <div className="relative">
               <img
-                src={otherParty?.photoUrl || `https://ui-avatars.com/api/?name=${otherParty?.name}&background=7F5AF0&color=fff`}
+                src={otherParty?.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherParty?.name || 'User')}&background=7F5AF0&color=fff`}
                 className="w-12 h-12 rounded-2xl object-cover border border-white/10 shadow-glow-blue/10"
                 alt=""
               />
@@ -97,6 +103,8 @@ const ChatBox = ({ booking, currentUser, onClose }) => {
             </div>
           </div>
           <button
+            type="button"
+            aria-label="Close chat"
             onClick={onClose}
             className="p-3 bg-white/5 rounded-2xl text-white/40 hover:text-white hover:bg-white/10 transition-all active:scale-90"
           >
@@ -105,11 +113,25 @@ const ChatBox = ({ booking, currentUser, onClose }) => {
         </div>
 
         {/* Message List */}
-        <div className="flex-grow overflow-y-auto p-6 space-y-4 custom-scrollbar bg-black/20">
+        <div className="flex-grow overflow-y-auto bg-black/20 p-4 custom-scrollbar sm:p-6 space-y-4">
           {loading ? (
             <div className="h-full flex flex-col items-center justify-center">
               <div className="w-10 h-10 border-4 border-neon-blue/20 border-t-neon-blue rounded-full animate-spin mb-4"></div>
               <p className="text-white/20 text-[10px] font-black uppercase tracking-widest">Securing Connection...</p>
+            </div>
+          ) : error ? (
+            <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+              <p className="text-sm font-bold text-red-300">{error}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoading(true);
+                  setRetryKey(key => key + 1);
+                }}
+                className="mt-4 rounded-xl border border-white/10 px-4 py-2 text-xs font-black uppercase tracking-wider text-white"
+              >
+                Retry
+              </button>
             </div>
           ) : messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-10">
@@ -125,7 +147,7 @@ const ChatBox = ({ booking, currentUser, onClose }) => {
             messages.map((msg, i) => {
               const isMe = msg.senderId === currentUser._id;
               return (
-                <div key={i} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
+                <div key={msg._id || `${msg.timestamp || 'message'}-${i}`} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
                   <div className={`max-w-[80%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                     <div className={`px-4 py-3 rounded-2xl text-[13px] font-bold leading-relaxed ${isMe
                       ? 'bg-gradient-primary text-white shadow-glow-blue/20 rounded-tr-none'
@@ -135,7 +157,9 @@ const ChatBox = ({ booking, currentUser, onClose }) => {
                     </div>
                     <div className="flex items-center gap-1.5 mt-1.5 px-1">
                       <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">
-                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {Number.isNaN(new Date(msg.timestamp).getTime())
+                          ? 'Just now'
+                          : new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                       {isMe && <CheckCheck size={12} className="text-neon-blue opacity-50" />}
                     </div>
@@ -148,7 +172,7 @@ const ChatBox = ({ booking, currentUser, onClose }) => {
         </div>
 
         {/* Message Input */}
-        <div className="p-6 border-t border-white/5 bg-white/[0.02] backdrop-blur-md">
+        <div className="border-t border-white/5 bg-white/[0.02] p-3 backdrop-blur-md sm:p-6">
           <form onSubmit={handleSendMessage} className="flex items-center gap-3">
             <div className="flex-grow relative group">
               <input
@@ -156,13 +180,16 @@ const ChatBox = ({ booking, currentUser, onClose }) => {
                 placeholder="Message details..."
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-5 pr-4 py-4 text-sm text-white placeholder-white/20 outline-none focus:border-neon-blue/50 focus:ring-2 focus:ring-neon-blue/10 transition-all font-bold"
+                maxLength={2000}
+                disabled={sending}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-5 pr-4 py-4 text-sm text-white placeholder-white/20 outline-none focus:border-neon-blue/50 focus:ring-2 focus:ring-neon-blue/10 transition-all font-bold disabled:opacity-60"
               />
               <div className="absolute inset-0 rounded-2xl bg-neon-blue/5 opacity-0 group-focus-within:opacity-100 pointer-events-none transition-opacity"></div>
             </div>
             <button
               type="submit"
-              disabled={!newMessage.trim()}
+              aria-label="Send message"
+              disabled={!newMessage.trim() || sending}
               className="p-4 bg-gradient-primary text-white rounded-2xl shadow-glow-blue hover:opacity-90 transition-all active:scale-95 disabled:opacity-30 disabled:grayscale"
             >
               <Send size={20} />

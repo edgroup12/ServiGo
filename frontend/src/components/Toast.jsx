@@ -45,11 +45,14 @@ const ToastItem = ({ id, message, type, onDismiss }) => {
 
     return (
         <div
-            className={`glass-premium px-5 py-4 rounded-2xl border ${TOAST_BORDERS[type]} ${TOAST_BG[type]} shadow-2xl flex items-center gap-3 min-w-[300px] max-w-[420px] animate-in slide-in-from-right duration-300`}
+            role={type === 'error' ? 'alert' : 'status'}
+            className={`glass-premium w-full px-4 py-4 sm:px-5 rounded-2xl border ${TOAST_BORDERS[type]} ${TOAST_BG[type]} shadow-2xl flex items-center gap-3 sm:min-w-[300px] sm:max-w-[420px] animate-in slide-in-from-right duration-300`}
         >
             {TOAST_ICONS[type]}
             <p className="text-sm font-bold text-[var(--text-main)] flex-1">{message}</p>
             <button
+                type="button"
+                aria-label="Dismiss notification"
                 onClick={() => onDismiss(id)}
                 className="p-1 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5 transition-colors"
             >
@@ -74,7 +77,7 @@ export const ToastProvider = ({ children }) => {
     return (
         <ToastContext.Provider value={{ toast }}>
             {children}
-            <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
+            <div className="fixed left-3 right-3 top-3 z-[9999] flex flex-col items-stretch gap-3 pointer-events-none sm:left-auto sm:right-6 sm:top-6 sm:items-end">
                 {toasts.map(t => (
                     <div key={t.id} className="pointer-events-auto">
                         <ToastItem {...t} onDismiss={dismiss} />

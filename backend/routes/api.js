@@ -410,6 +410,9 @@ router.post('/messages', auth, async (req, res) => {
     if (!bookingId || typeof content !== 'string' || !content.trim()) {
       return res.status(400).json({ message: 'Booking and message content are required' });
     }
+    if (content.trim().length > 2000) {
+      return res.status(400).json({ message: 'Messages cannot exceed 2000 characters' });
+    }
     const booking = await Booking.findById(bookingId);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
     if (!isBookingParticipant(booking, req.user.id)) {
