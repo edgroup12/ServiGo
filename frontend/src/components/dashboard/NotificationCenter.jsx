@@ -65,8 +65,8 @@ const NotificationCenter = ({ currentUser, onClose }) => {
   };
 
   return (
-    <div className="fixed left-3 right-3 top-20 mt-2 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-4 sm:w-96 glass-premium border border-white/10 rounded-[1.5rem] sm:rounded-[2rem] shadow-2xl z-[100] overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
-      <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+    <div className="fixed left-3 right-3 top-20 mt-2 overflow-hidden rounded-[1.5rem] border border-slate-600 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.75)] backdrop-blur-xl sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-4 sm:w-96 sm:rounded-[2rem] z-[100] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+      <div className="p-5 sm:p-6 border-b border-slate-700 flex items-center justify-between bg-slate-900">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-neon-blue/10 flex items-center justify-center text-neon-blue shadow-glow-blue/10">
             <Bell size={20} />
@@ -77,18 +77,18 @@ const NotificationCenter = ({ currentUser, onClose }) => {
           {notifications.some(n => !n.isRead) && (
             <button
               onClick={markAllAsRead}
-              className="text-[9px] font-black uppercase tracking-widest text-neon-blue hover:text-white transition-colors"
+              className="rounded-lg bg-neon-blue/15 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-cyan-300 hover:bg-neon-blue/25 hover:text-white transition-colors"
             >
               Mark all read
             </button>
           )}
-          <button onClick={onClose} className="p-1.5 text-white/40 hover:text-white" aria-label="Close notifications">
+          <button onClick={onClose} className="rounded-lg bg-white/5 p-2 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Close notifications">
             <X size={16} />
           </button>
         </div>
       </div>
 
-      <div className="max-h-[400px] overflow-y-auto custom-scrollbar bg-black/20">
+      <div className="max-h-[min(65vh,480px)] overflow-y-auto custom-scrollbar bg-slate-950">
         {loading ? (
           <div className="p-12 flex justify-center">
             <div className="w-8 h-8 border-2 border-neon-blue/20 border-t-neon-blue rounded-full animate-spin"></div>
@@ -104,30 +104,30 @@ const NotificationCenter = ({ currentUser, onClose }) => {
             <p className="text-white/40 text-xs font-bold uppercase tracking-widest">No notifications yet</p>
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
+          <div className="divide-y divide-slate-700/80">
             {notifications.map((notification, index) => (
               <div
                 key={notification._id || `${notification.timestamp}-${index}`}
-                className={`p-5 hover:bg-white/[0.03] transition-colors relative group ${!notification.isRead ? 'bg-white/[0.01]' : ''}`}
+                className={`relative p-5 transition-colors group ${!notification.isRead ? 'cursor-pointer bg-cyan-950/70 hover:bg-cyan-900/60' : 'bg-slate-900/80 hover:bg-slate-800'}`}
                 onClick={() => !notification.isRead && markAsRead(notification._id)}
               >
                 {!notification.isRead && (
-                  <div className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-8 bg-neon-blue rounded-full"></div>
+                  <div className="absolute inset-y-0 left-0 w-1.5 bg-cyan-400 shadow-[0_0_14px_rgba(34,211,238,0.8)]"></div>
                 )}
                 <div className="flex gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border border-white/5 ${!notification.isRead ? 'bg-white/5' : 'opacity-40'}`}>
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 border ${!notification.isRead ? 'border-cyan-400/40 bg-cyan-400/15' : 'border-slate-600 bg-slate-800'}`}>
                     {getIcon(notification.type)}
                   </div>
                   <div className="flex-grow min-w-0">
                     <div className="flex justify-between items-start mb-1">
-                      <h4 className={`text-xs font-black tracking-tight truncate ${notification.isRead ? 'text-white/40' : 'text-white'}`}>
+                      <h4 className={`truncate text-sm font-black tracking-tight ${notification.isRead ? 'text-slate-300' : 'text-white'}`}>
                         {notification.title}
                       </h4>
-                      <span className="text-[8px] font-black text-white/20 uppercase tracking-widest whitespace-nowrap ml-2">
+                      <span className={`ml-2 whitespace-nowrap text-[9px] font-bold uppercase tracking-wider ${notification.isRead ? 'text-slate-500' : 'text-cyan-300'}`}>
                         {new Date(notification.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <p className={`text-[11px] leading-relaxed line-clamp-2 ${notification.isRead ? 'text-white/20' : 'text-white/60 font-medium'}`}>
+                    <p className={`mt-1 line-clamp-3 text-xs leading-relaxed ${notification.isRead ? 'text-slate-400' : 'font-semibold text-slate-100'}`}>
                       {notification.message}
                     </p>
                     {notification.link && (
@@ -146,8 +146,8 @@ const NotificationCenter = ({ currentUser, onClose }) => {
         )}
       </div>
 
-      <div className="p-4 border-t border-white/5 text-center bg-white/[0.01]">
-        <button className="text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-white transition-colors">
+      <div className="p-4 border-t border-slate-700 text-center bg-slate-900">
+        <button className="text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-white transition-colors">
           View All Notifications
         </button>
       </div>
