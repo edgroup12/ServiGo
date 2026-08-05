@@ -49,6 +49,17 @@ describe('Express application smoke tests', () => {
         assert.equal(response.headers.get('x-frame-options'), 'SAMEORIGIN');
     });
 
+    it('accepts Vercel-style forwarded client IP headers', async () => {
+        const response = await fetch(`${baseUrl}/api/quality-check-missing`, {
+            headers: { 'x-forwarded-for': '203.0.113.10' }
+        });
+        const body = await response.json();
+
+        assert.equal(response.status, 404);
+        assert.equal(body.success, false);
+        assert.equal(app.get('trust proxy'), 1);
+    });
+
     it('rejects malformed JSON without exposing an HTML error page', async () => {
         const response = await fetch(`${baseUrl}/api/auth/login`, {
             method: 'POST',

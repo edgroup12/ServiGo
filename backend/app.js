@@ -8,6 +8,10 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
+// Vercel forwards the original client IP through one trusted proxy hop.
+// This also lets express-rate-limit safely identify clients behind Vercel.
+app.set('trust proxy', 1);
+
 // Security: helmet middleware with relaxed policies for API
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
