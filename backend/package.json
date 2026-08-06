@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test test/*.test.js",
-    "check": "find . -type f -name '*.js' -not -path './node_modules/*' -print0 | xargs -0 -n1 node --check"
+    "check": "find . -type f -name '*.js' -not -path './node_modules/*' -print0 | xargs -0 -n1 node --check",
+    "repair:categories": "node repair-categories.js",
+    "repair:categories:apply": "node repair-categories.js --apply"
   },
   "keywords": [],
   "author": "",

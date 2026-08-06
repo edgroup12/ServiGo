@@ -1,0 +1,24 @@
+{
+    "name": "servigo-realtime",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Authenticated Socket.IO service for ServiGo chat and ephemeral location",
+    "main": "server.js",
+    "type": "commonjs",
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "start": "node server.js",
+        "test": "node --test test/*.test.js",
+        "check": "find . -type f -name '*.js' -not -path './node_modules/*' -print0 | xargs -0 -n1 node --check"
+    },
+    "dependencies": {
+        "dotenv": "^17.4.2",
+        "express": "^5.2.1",
+        "helmet": "^8.1.0",
+        "jsonwebtoken": "^9.0.2",
+        "mongoose": "^9.6.1",
+        "socket.io": "^4.8.3"
+    }
+}
