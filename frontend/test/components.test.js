@@ -6,6 +6,7 @@ import { createServer } from 'vite';
 
 let vite;
 let AsyncState;
+let chatState;
 
 before(async () => {
     vite = await createServer({
@@ -15,6 +16,7 @@ before(async () => {
         logLevel: 'error'
     });
     AsyncState = await vite.ssrLoadModule('/src/components/AsyncState.jsx');
+    chatState = await vite.ssrLoadModule('/src/hooks/chat-state.js');
 });
 
 after(async () => {
@@ -75,5 +77,49 @@ describe('AsyncState components', () => {
 
         assert.match(actionableHtml, /Explore services/);
         assert.doesNotMatch(passiveHtml, /Explore services/);
+    });
+});
+
+describe('chat state transitions', () => {
+    const message = (id, timestamp, extras = {}) => ({
+        _id: id,
+        bookingId: 'booking-1',
+        senderId: 'customer-1',
+        content: id,
+        timestamp,
+        ...extras
+    });
+
+    it('merges HTTP and realtime records once in chronological order', () => {
+        const later = message('message-2', '2026-08-07T10:02:00.000Z');
+        const earlier = message('message-1', '2026-08-07T10:01:00.000Z');
+        const result = chatState.mergeChatMessages([later], [earlier, later]);
+
+        assert.deepEqual(result.map((entry) => entry._id), ['message-1', 'message-2']);
+    });
+
+    it('replaces an optimistic record with its canonical persisted record', () => {
+        const optimistic = message('message-1', '2026-08-07T10:01:00.000Z', {
+            _clientId: 'client-1',
+            status: 'sent',
+            content: 'optimistic'
+        });
+        const canonical = message('message-1', '2026-08-07T10:01:01.000Z', {
+            content: 'canonical'
+        });
+
+        assert.deepEqual(
+            chatState.mergeChatMessages([optimistic], [canonical]),
+            [canonical]
+        );
+    });
+
+    it('marks only the recipient-acknowledged message as delivered', () => {
+        const first = message('message-1', '2026-08-07T10:01:00.000Z', { status: 'sent' });
+        const second = message('message-2', '2026-08-07T10:02:00.000Z', { status: 'sent' });
+        const result = chatState.markChatMessageDelivered([first, second], 'message-1');
+
+        assert.equal(result[0].status, 'delivered');
+        assert.equal(result[1].status, 'sent');
     });
 });

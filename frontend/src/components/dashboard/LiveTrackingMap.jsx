@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import socket from '../../services/socket';
 
 // Fix for default marker icons in Leaflet with React
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -40,33 +39,17 @@ const MapRecenter = ({ position }) => {
   return null;
 };
 
-const LiveTrackingMap = ({ bookingId, initialPosition }) => {
-  const [workerPos, setWorkerPos] = useState(initialPosition || [23.8103, 90.4125]); // Default to Dhaka
-  const [isConnected, setIsConnected] = useState(false);
-
-  useEffect(() => {
-    socket.emit('join_booking', bookingId);
-
-    const handleLocationUpdate = (data) => {
-      if (data.bookingId === bookingId) {
-        setWorkerPos([data.lat, data.lng]);
-        setIsConnected(true);
-      }
-    };
-    socket.on('location_updated', handleLocationUpdate);
-
-    return () => {
-      socket.off('location_updated', handleLocationUpdate);
-    };
-  }, [bookingId]);
+const LiveTrackingMap = ({ initialPosition }) => {
+  const workerPos = initialPosition || [23.8103, 90.4125];
+  const isConnected = false;
 
   return (
     <div className="w-full h-[400px] rounded-[2rem] overflow-hidden border border-white/10 relative shadow-2xl">
       {!isConnected && (
         <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-md flex flex-col items-center justify-center text-center p-8">
           <div className="w-16 h-16 border-4 border-neon-blue border-t-transparent rounded-full animate-spin mb-4"></div>
-          <h4 className="text-white font-bold text-lg mb-2">Waiting for Worker's Location...</h4>
-          <p className="text-white/60 text-sm">Once the worker starts moving, you will see their live location on this map.</p>
+          <h4 className="text-white font-bold text-lg mb-2">Live tracking is temporarily unavailable</h4>
+          <p className="text-white/60 text-sm">Location updates will return after authenticated realtime service is enabled.</p>
         </div>
       )}
 
@@ -94,7 +77,7 @@ const LiveTrackingMap = ({ bookingId, initialPosition }) => {
       <div className="absolute top-4 right-4 z-[1000] flex gap-2">
         <div className="glass-premium px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/10 shadow-glow-blue/20">
           <div className="w-2 h-2 bg-neon-blue rounded-full animate-pulse shadow-glow-blue"></div>
-          <span className="text-[9px] font-black text-white uppercase tracking-widest">Live Tracking</span>
+          <span className="text-[9px] font-black text-white uppercase tracking-widest">Tracking Unavailable</span>
         </div>
       </div>
 

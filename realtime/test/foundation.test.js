@@ -45,6 +45,9 @@ test('config parses exact origins and rejects wildcard origins', () => {
 test('contract provides versioned events, scoped rooms and acknowledgements', () => {
     assert.equal(CONTRACT_VERSION, 1);
     assert.match(EVENTS.CHAT_JOIN, /^v1:/);
+    assert.equal(EVENTS.CHAT_RECEIVED, 'v1:chat:received');
+    assert.equal(EVENTS.CHAT_DELIVERED, 'v1:chat:delivered');
+    assert.equal(ERROR_CODES.MESSAGE_NOT_FOUND, 'MESSAGE_NOT_FOUND');
     assert.equal(roomNames.user('123'), 'user:123');
     assert.equal(roomNames.chat('abc'), 'booking:chat:abc');
     assert.equal(roomNames.location('abc'), 'booking:location:abc');

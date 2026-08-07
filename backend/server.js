@@ -1,102 +1,45 @@
 require('dotenv').config();
-const http = require('http');
-const { Server } = require('socket.io');
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 const app = require('./app');
 const connectDatabase = require('./db');
 const seedDatabase = require('./seed');
-
-const server = http.createServer(app);
-
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:5173', 'http://localhost:4173'];
-
-const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST"]
-  }
-});
-
-// Make io accessible to routes via the app
-app.set('io', io);
-
-// Socket.io integration
-io.on('connection', (socket) => {
-  console.log('User connected to chat/tracking:', socket.id);
-
-  socket.on('join_user', (userId) => {
-    socket.join(String(userId));
-    console.log(`User joined personal room: ${userId}`);
-  });
-
-  socket.on('join_booking', (bookingId) => {
-    socket.join(String(bookingId));
-    console.log(`User joined booking room: ${bookingId}`);
-  });
-
-  socket.on('send_message', (data) => {
-    io.to(data.bookingId).emit('receive_message', data);
-  });
-
-  socket.on('send_notification', (data) => {
-    io.to(data.recipientId).emit('receive_notification', data);
-  });
-
-  socket.on('update_location', (data) => {
-    io.to(data.bookingId).emit('location_updated', data);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-  });
-});
 
 const PORT = process.env.PORT || 5001;
 
 const startServer = async () => {
   try {
-    // Environment variable validation
+    const useMemoryDatabase = process.env.USE_MEMORY_DB === 'true';
+    const isProduction = process.env.NODE_ENV === 'production';
     const requiredVars = ['JWT_SECRET'];
-    const missing = requiredVars.filter(v => !process.env[v]);
+    if (!useMemoryDatabase) requiredVars.push('MONGODB_URI');
+
+    const missing = requiredVars.filter(variable => !process.env[variable]);
     if (missing.length > 0) {
-      console.error(`FATAL: Missing required environment variables: ${missing.join(', ')}`);
-      process.exit(1);
+      throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    }
+    if (isProduction && useMemoryDatabase) {
+      throw new Error('USE_MEMORY_DB cannot be enabled in production');
     }
 
-    let mongoUri = process.env.MONGODB_URI;
+    if (useMemoryDatabase) {
+      const { MongoMemoryServer } = require('mongodb-memory-server');
+      const mongoServer = await MongoMemoryServer.create();
+      console.log('Starting explicitly configured in-memory database for development');
+      await mongoose.connect(mongoServer.getUri());
+      await seedDatabase();
+    } else {
+      console.log('Connecting to MongoDB...');
+      await connectDatabase(process.env.MONGODB_URI);
+      console.log('MongoDB connected');
 
-    if (mongoUri) {
-      try {
-        console.log('Attempting to connect to MongoDB...');
-        await connectDatabase(mongoUri);
-        console.log('MongoDB connected successfully to primary URI');
-      } catch (dbErr) {
-        console.warn('Failed to connect to process.env.MONGODB_URI:', dbErr.message);
-        if (process.env.NODE_ENV === 'production') {
-          throw dbErr;
-        }
-        console.log('Falling back to in-memory MongoDB for local development...');
-        mongoUri = null;
+      if (process.env.SEED_DB === 'true') {
+        if (isProduction) throw new Error('SEED_DB cannot be enabled in production');
+        console.log('Seeding development database...');
+        await seedDatabase();
       }
     }
 
-    if (!mongoUri) {
-      const mongoServer = await MongoMemoryServer.create();
-      mongoUri = mongoServer.getUri();
-      console.log('Started in-memory MongoDB at', mongoUri);
-      await mongoose.connect(mongoUri);
-      console.log('In-memory MongoDB connected');
-      console.log('Seeding in-memory database...');
-      await seedDatabase();
-    } else if (process.env.SEED_DB === 'true') {
-      console.log('Seeding database...');
-      await seedDatabase();
-    }
-
-    server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    app.listen(PORT, () => console.log(`HTTP API running on port ${PORT}`));
   } catch (err) {
     console.error('Server startup error:', err);
     process.exit(1);

@@ -18,8 +18,7 @@ const Booking = () => {
     date: '',
     time: '',
     address: '',
-    description: '',
-    paymentMethod: 'Cash'
+    description: ''
   });
 
   const fetchWorker = useCallback(async () => {
@@ -67,7 +66,7 @@ const Booking = () => {
         date: bookingDate,
         address: formData.address.trim(),
         description: formData.description.trim(),
-        paymentMethod: formData.paymentMethod
+        paymentMethod: 'Cash'
       };
 
       await api.post('/bookings', bookingData);
@@ -169,28 +168,9 @@ const Booking = () => {
                 <h3 className="text-xl font-black text-white mb-5 font-poppins flex items-center gap-2 uppercase tracking-tight">
                   <CreditCard size={22} className="text-neon-blue shadow-glow-blue" /> Payment Method
                 </h3>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-                  {['Cash', 'bKash', 'Nagad'].map((method) => (
-                    <label
-                      key={method}
-                      className={`cursor-pointer border-2 rounded-2xl p-4 text-center transition-all ${formData.paymentMethod === method
-                        ? 'border-purple-500 bg-purple-500/10 backdrop-blur-sm shadow-xl scale-[1.02]'
-                        : 'border-white/10 bg-white/5 backdrop-blur-sm hover:border-white/30'
-                        }`}
-                    >
-                      <input
-                        type="radio"
-                        name="paymentMethod"
-                        value={method}
-                        checked={formData.paymentMethod === method}
-                        onChange={handleChange}
-                        className="hidden"
-                      />
-                      <span className={`font-black uppercase tracking-widest text-xs block ${formData.paymentMethod === method ? 'text-white' : 'text-white/40'}`}>{method}</span>
-                      {method === 'bKash' && <div className="text-[10px] text-pink-600 mt-1 font-extrabold uppercase tracking-widest">bKash</div>}
-                      {method === 'Nagad' && <div className="text-[10px] text-orange-500 mt-1 font-extrabold uppercase tracking-widest">Nagad</div>}
-                    </label>
-                  ))}
+                <div className="border-2 border-neon-blue/40 rounded-2xl p-4 bg-neon-blue/10">
+                  <span className="block text-xs font-black uppercase tracking-widest text-white">Cash</span>
+                  <span className="mt-1 block text-xs text-white/60">Online payments are temporarily unavailable.</span>
                 </div>
               </div>
 

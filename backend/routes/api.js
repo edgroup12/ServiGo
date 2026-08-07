@@ -14,6 +14,7 @@ const { auth, adminOnly } = require('../middleware/auth');
 const publicRoles = new Set(['customer', 'worker']);
 const bookingStatuses = new Set(['pending', 'confirmed', 'completed', 'declined']);
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const accessTokenLifetime = '2h';
 
 const canAccessUser = (requester, userId) => (
   requester.role === 'admin' || requester.id === userId
@@ -242,9 +243,16 @@ router.post('/bookings', auth, async (req, res) => {
       return res.status(403).json({ message: 'Only customers can create bookings' });
     }
 
-    const { worker, date, address, description, paymentMethod, transactionId } = req.body;
+    const { worker, date, address, description, paymentMethod } = req.body;
     if (!worker || !date || !address?.trim() || !description?.trim() || !paymentMethod) {
       return res.status(400).json({ message: 'Worker, date, address, description, and payment method are required' });
+    }
+    if (paymentMethod !== 'Cash') {
+      return res.status(503).json({
+        success: false,
+        code: 'ONLINE_PAYMENTS_DISABLED',
+        message: 'Online payments are temporarily unavailable. Please select Cash.'
+      });
     }
     if (address.trim().length > 300 || description.trim().length > 1000) {
       return res.status(400).json({ message: 'Address or description is too long' });
@@ -272,8 +280,7 @@ router.post('/bookings', auth, async (req, res) => {
       address: address.trim(),
       description: description.trim(),
       estimatedPrice: selectedWorker.pricePerHour * estimatedHours,
-      paymentMethod,
-      transactionId: typeof transactionId === 'string' ? transactionId.trim() : undefined
+      paymentMethod: 'Cash'
     });
     const savedBooking = await newBooking.save();
 
@@ -288,11 +295,6 @@ router.post('/bookings', auth, async (req, res) => {
       link: '/worker-dashboard'
     });
     await notification.save();
-
-    // Emit real-time notification
-    if (req.io) {
-      req.io.to(savedBooking.worker.toString()).emit('receive_notification', notification);
-    }
 
     res.status(201).json(savedBooking);
   } catch (error) {
@@ -375,10 +377,6 @@ router.patch('/bookings/:id/status', auth, async (req, res) => {
         });
         await notification.save();
 
-        // Emit real-time notification
-        if (req.io) {
-          req.io.to(recipientId.toString()).emit('receive_notification', notification);
-        }
       }
     }
 
@@ -443,10 +441,6 @@ router.post('/messages', auth, async (req, res) => {
       });
       await notification.save();
 
-      // Emit real-time notification
-      if (req.io) {
-        req.io.to(recipientId.toString()).emit('receive_notification', notification);
-      }
     }
 
     res.status(201).json(savedMessage);
@@ -558,11 +552,10 @@ router.post('/auth/register', async (req, res) => {
 
     await newUser.save();
 
-    // Create token
     const token = jwt.sign(
       { id: newUser._id, role: newUser.role },
       process.env.JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: accessTokenLifetime }
     );
 
     res.status(201).json({
@@ -595,11 +588,10 @@ router.post('/auth/login', async (req, res) => {
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(401).json({ message: 'Invalid email or password' });
 
-    // Create token
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: accessTokenLifetime }
     );
 
     res.json({

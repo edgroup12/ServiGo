@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Search, Bell, ChevronDown, User, MoreVertical } from 'lucide-react';
 import NotificationCenter from './NotificationCenter';
 import api from '../../services/api';
-import socket from '../../services/socket';
 
 const Navbar = ({ user, toggleSidebar }) => {
   const [showNotifications, setShowNotifications] = useState(false);
@@ -21,15 +20,6 @@ const Navbar = ({ user, toggleSidebar }) => {
 
     fetchUnreadCount();
 
-    // Listen for real-time notifications
-    const handleNewNotification = () => {
-      setUnreadCount(prev => prev + 1);
-    };
-    socket.on('receive_notification', handleNewNotification);
-
-    return () => {
-      socket.off('receive_notification', handleNewNotification);
-    };
   }, [user]);
 
   return (

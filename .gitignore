@@ -6,3 +6,7 @@ frontend/node_modules/
 *.log
 .DS_Store
 frontend/api/backend/
+.vercel
+.env
+.env.*
+!.env.example

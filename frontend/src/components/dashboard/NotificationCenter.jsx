@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Bell, CheckCircle2, MessageSquare, AlertCircle, Clock, ExternalLink, X } from 'lucide-react';
 import api from '../../services/api';
-import socket from '../../services/socket';
 
 const NotificationCenter = ({ currentUser, onClose }) => {
   const [notifications, setNotifications] = useState([]);
@@ -25,15 +24,6 @@ const NotificationCenter = ({ currentUser, onClose }) => {
 
     fetchNotifications();
 
-    // Socket listener for real-time notifications
-    const handleNotification = (notification) => {
-      setNotifications(prev => [notification, ...prev]);
-    };
-    socket.on('receive_notification', handleNotification);
-
-    return () => {
-      socket.off('receive_notification', handleNotification);
-    };
   }, [currentUser]);
 
   const markAsRead = async (id) => {

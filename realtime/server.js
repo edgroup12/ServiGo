@@ -18,13 +18,28 @@ const {
     acknowledgement
 } = require('./contracts');
 const { authorizeBookingRoom } = require('./authorize-booking');
+const { Message } = require('./models');
 const logger = require('./logger');
 
 const createRealtimeServer = ({
     config = loadConfig(),
     connect = connectDatabase,
     disconnect = disconnectDatabase,
-    isReady = databaseIsReady
+    isReady = databaseIsReady,
+    /**
+     * Optionally inject a BlacklistedToken model stub (useful for tests).
+     * When undefined the default model from models.js is used.
+     * @type {{ exists: (query: object) => Promise<boolean> } | undefined}
+     */
+    tokenModel = undefined,
+    /**
+     * Optionally inject a Booking model stub (useful for tests).
+     * When undefined the default model from models.js is used via authorizeBookingRoom.
+     * @type {object | undefined}
+     */
+    bookingModel = undefined,
+    /** Realtime reads persisted messages but never creates them. */
+    messageModel = Message
 } = {}) => {
     const app = express();
     app.disable('x-powered-by');
@@ -57,9 +72,10 @@ const createRealtimeServer = ({
     const io = new Server(httpServer, {
         cors: {
             origin(origin, callback) {
-                if (origin && allowedOrigins.has(origin)) {
-                    return callback(null, true);
-                }
+                // Allow requests with no Origin header (e.g. Node.js test clients,
+                // server-to-server calls, or non-browser WebSocket clients).
+                if (!origin) return callback(null, true);
+                if (allowedOrigins.has(origin)) return callback(null, true);
                 return callback(new Error('Origin not allowed'));
             },
             methods: ['GET', 'POST'],
@@ -70,7 +86,10 @@ const createRealtimeServer = ({
         transports: ['websocket', 'polling']
     });
 
-    io.use(createSocketAuthenticator({ jwtSecret: config.jwtSecret }));
+    io.use(createSocketAuthenticator({
+        jwtSecret: config.jwtSecret,
+        ...(tokenModel ? { tokenModel } : {})
+    }));
 
     io.on('connection', (socket) => {
         socket.join(roomNames.user(socket.data.user.id));
@@ -94,7 +113,8 @@ const createRealtimeServer = ({
                 const result = await authorizeBookingRoom({
                     bookingId: payload?.bookingId,
                     user: socket.data.user,
-                    scope
+                    scope,
+                    ...(bookingModel ? { bookingModel } : {})
                 });
 
                 if (!result.ok) {
@@ -151,6 +171,180 @@ const createRealtimeServer = ({
         socket.on(EVENTS.CHAT_LEAVE, handleRoomLeave('chat'));
         socket.on(EVENTS.LOCATION_JOIN, handleRoomJoin('location'));
         socket.on(EVENTS.LOCATION_LEAVE, handleRoomLeave('location'));
+
+        // ── v1:chat:publish ──────────────────────────────────────────────────
+        //
+        // HTTP persistence is authoritative. This event only republishes the
+        // canonical record returned by Mongo after the HTTP POST succeeds.
+        socket.on(EVENTS.CHAT_PUBLISH, async (payload, callback) => {
+            try {
+                const { messageId, bookingId, clientTimestamp } = payload ?? {};
+
+                // — Payload validation —
+                if (
+                    typeof messageId !== 'string' ||
+                    messageId.length === 0 ||
+                    messageId.length > LIMITS.MAX_MESSAGE_ID_LENGTH
+                ) {
+                    return safelyAcknowledge(
+                        callback,
+                        acknowledgement.error(ERROR_CODES.INVALID_PAYLOAD, 'A valid message ID is required')
+                    );
+                }
+
+                if (
+                    typeof bookingId !== 'string' ||
+                    bookingId.length === 0 ||
+                    bookingId.length > LIMITS.MAX_BOOKING_ID_LENGTH
+                ) {
+                    return safelyAcknowledge(
+                        callback,
+                        acknowledgement.error(ERROR_CODES.INVALID_PAYLOAD, 'A valid booking ID is required')
+                    );
+                }
+
+                // — Clock skew check (guard against replayed events) —
+                if (typeof clientTimestamp === 'string') {
+                    const clientTime = Date.parse(clientTimestamp);
+                    if (Number.isNaN(clientTime)) {
+                        return safelyAcknowledge(
+                            callback,
+                            acknowledgement.error(ERROR_CODES.INVALID_PAYLOAD, 'clientTimestamp must be a valid ISO string')
+                        );
+                    }
+                    const skewMs = Math.abs(Date.now() - clientTime);
+                    if (skewMs > LIMITS.MAX_CLOCK_SKEW_MS) {
+                        return safelyAcknowledge(
+                            callback,
+                            acknowledgement.error(ERROR_CODES.STALE_EVENT, 'Event timestamp is outside the allowed clock skew window')
+                        );
+                    }
+                }
+
+                // — Room membership check —
+                const chatRoom = roomNames.chat(bookingId);
+                const roomSockets = await io.in(chatRoom).allSockets();
+                if (!roomSockets.has(socket.id)) {
+                    return safelyAcknowledge(
+                        callback,
+                        acknowledgement.error(ERROR_CODES.FORBIDDEN, 'You must join the chat room before publishing')
+                    );
+                }
+
+                const persistedMessage = await messageModel
+                    .findOne({
+                        _id: messageId,
+                        bookingId,
+                        senderId: socket.data.user.id
+                    })
+                    .lean();
+
+                if (!persistedMessage) {
+                    return safelyAcknowledge(
+                        callback,
+                        acknowledgement.error(ERROR_CODES.MESSAGE_NOT_FOUND, 'Persisted message not found')
+                    );
+                }
+
+                // — Broadcast the canonical persisted record to other members —
+                const canonicalMessage = {
+                    _id: String(persistedMessage._id),
+                    bookingId: String(persistedMessage.bookingId),
+                    senderId: String(persistedMessage.senderId),
+                    content: persistedMessage.content,
+                    timestamp: new Date(persistedMessage.timestamp).toISOString()
+                };
+                socket.to(chatRoom).emit(EVENTS.CHAT_MESSAGE, canonicalMessage);
+
+                logger.info('chat.message_broadcast', {
+                    socketId: socket.id,
+                    userId: socket.data.user.id,
+                    bookingId,
+                    messageId
+                });
+
+                return safelyAcknowledge(callback, acknowledgement.success({
+                    messageId: canonicalMessage._id,
+                    deliveryState: 'sent',
+                    serverTimestamp: new Date().toISOString()
+                }));
+            } catch (error) {
+                logger.error('chat.publish_failed', {
+                    socketId: socket.id,
+                    userId: socket.data.user.id,
+                    error: error.message
+                });
+                return safelyAcknowledge(
+                    callback,
+                    acknowledgement.error(ERROR_CODES.INTERNAL_ERROR, 'Unable to broadcast message')
+                );
+            }
+        });
+
+        socket.on(EVENTS.CHAT_RECEIVED, async (payload, callback) => {
+            try {
+                const { bookingId, messageId } = payload ?? {};
+                if (
+                    typeof bookingId !== 'string' ||
+                    typeof messageId !== 'string' ||
+                    !bookingId ||
+                    !messageId ||
+                    bookingId.length > LIMITS.MAX_BOOKING_ID_LENGTH ||
+                    messageId.length > LIMITS.MAX_MESSAGE_ID_LENGTH
+                ) {
+                    return safelyAcknowledge(
+                        callback,
+                        acknowledgement.error(ERROR_CODES.INVALID_PAYLOAD, 'Booking ID and message ID are required')
+                    );
+                }
+
+                const chatRoom = roomNames.chat(bookingId);
+                const roomSockets = await io.in(chatRoom).allSockets();
+                if (!roomSockets.has(socket.id)) {
+                    return safelyAcknowledge(
+                        callback,
+                        acknowledgement.error(ERROR_CODES.FORBIDDEN, 'You must join the chat room first')
+                    );
+                }
+
+                const persistedMessage = await messageModel
+                    .findOne({ _id: messageId, bookingId })
+                    .lean();
+                if (!persistedMessage) {
+                    return safelyAcknowledge(
+                        callback,
+                        acknowledgement.error(ERROR_CODES.MESSAGE_NOT_FOUND, 'Persisted message not found')
+                    );
+                }
+                if (String(persistedMessage.senderId) === socket.data.user.id) {
+                    return safelyAcknowledge(
+                        callback,
+                        acknowledgement.error(ERROR_CODES.FORBIDDEN, 'Senders cannot acknowledge their own message')
+                    );
+                }
+
+                io.to(roomNames.user(String(persistedMessage.senderId))).emit(EVENTS.CHAT_DELIVERED, {
+                    bookingId,
+                    messageId: String(persistedMessage._id),
+                    deliveredBy: socket.data.user.id,
+                    serverTimestamp: new Date().toISOString()
+                });
+                return safelyAcknowledge(callback, acknowledgement.success({
+                    messageId: String(persistedMessage._id),
+                    deliveryState: 'delivered'
+                }));
+            } catch (error) {
+                logger.error('chat.received_failed', {
+                    socketId: socket.id,
+                    userId: socket.data.user.id,
+                    error: error.message
+                });
+                return safelyAcknowledge(
+                    callback,
+                    acknowledgement.error(ERROR_CODES.INTERNAL_ERROR, 'Unable to record delivery')
+                );
+            }
+        });
 
         socket.on('disconnect', (reason) => {
             logger.info('socket.disconnected', {
