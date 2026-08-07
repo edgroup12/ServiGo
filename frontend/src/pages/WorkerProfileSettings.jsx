@@ -7,13 +7,13 @@ import {
   Briefcase,
   DollarSign,
   FileText,
-  Image as ImageIcon,
   Save,
   ArrowLeft,
   CheckCircle2
 } from 'lucide-react';
 import api from '../services/api';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
+import ProfileImageUpload from '../components/ProfileImageUpload';
 
 const WorkerProfileSettings = ({ currentUser, setCurrentUser }) => {
   const navigate = useNavigate();
@@ -25,8 +25,7 @@ const WorkerProfileSettings = ({ currentUser, setCurrentUser }) => {
     phone: '',
     bio: '',
     skills: '',
-    pricePerHour: '',
-    photoUrl: ''
+    pricePerHour: ''
   });
 
   useEffect(() => {
@@ -41,8 +40,7 @@ const WorkerProfileSettings = ({ currentUser, setCurrentUser }) => {
         phone: currentUser.phone || '',
         bio: currentUser.bio || '',
         skills: currentUser.skills ? currentUser.skills.join(', ') : '',
-        pricePerHour: currentUser.pricePerHour || '',
-        photoUrl: currentUser.photoUrl || ''
+        pricePerHour: currentUser.pricePerHour || ''
       });
     }, 0);
 
@@ -51,6 +49,16 @@ const WorkerProfileSettings = ({ currentUser, setCurrentUser }) => {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleImageUploaded = (image) => {
+    const updatedUser = {
+      ...currentUser,
+      photoUrl: image.photoUrl,
+      profileImagePublicId: image.profileImagePublicId
+    };
+    setCurrentUser(updatedUser);
+    localStorage.setItem('servigo_user', JSON.stringify(updatedUser));
   };
 
   const handleSubmit = async (e) => {
@@ -216,30 +224,11 @@ const WorkerProfileSettings = ({ currentUser, setCurrentUser }) => {
             <div className="glass-card border-gradient-premium p-8">
               <h2 className="text-lg font-black text-white font-poppins tracking-tight mb-6">Profile Photo</h2>
 
-              <div className="flex flex-col items-center gap-6">
-                <div className="relative group">
-                  <img
-                    src={formData.photoUrl || `https://ui-avatars.com/api/?name=${formData.name}&background=7F5AF0&color=fff`}
-                    alt="Profile"
-                    className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-glow-purple transition-transform group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                    <ImageIcon className="text-white" size={24} />
-                  </div>
-                </div>
-
-                <div className="w-full space-y-2">
-                  <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Photo URL</label>
-                  <input
-                    type="text"
-                    name="photoUrl"
-                    value={formData.photoUrl}
-                    onChange={handleChange}
-                    placeholder="https://example.com/photo.jpg"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-xs text-white font-bold outline-none focus:border-neon-purple transition-all"
-                  />
-                </div>
-              </div>
+              <ProfileImageUpload
+                currentUser={{ ...currentUser, name: formData.name }}
+                onUploaded={handleImageUploaded}
+                accent="purple"
+              />
             </div>
 
             <button

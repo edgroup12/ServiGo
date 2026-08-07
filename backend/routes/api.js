@@ -163,7 +163,7 @@ router.put('/workers/:id', auth, async (req, res) => {
       delete req.body.role;
     }
 
-    const { bio, skills, pricePerHour, photoUrl, name, phone } = req.body;
+    const { bio, skills, pricePerHour, name, phone } = req.body;
     const normalizedName = typeof name === 'string' ? name.trim() : '';
     const normalizedSkills = Array.isArray(skills)
       ? skills.map(skill => typeof skill === 'string' ? skill.trim() : '').filter(Boolean)
@@ -187,7 +187,6 @@ router.put('/workers/:id', auth, async (req, res) => {
           bio: typeof bio === 'string' ? bio.trim() : '',
           skills: normalizedSkills,
           pricePerHour: parsedPrice,
-          photoUrl: typeof photoUrl === 'string' ? photoUrl.trim() : '',
           name: normalizedName,
           phone: typeof phone === 'string' ? phone.trim() : ''
         }
@@ -210,7 +209,7 @@ router.put('/customers/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized to update this profile' });
     }
 
-    const { name, phone, photoUrl, address } = req.body;
+    const { name, phone, address } = req.body;
     const normalizedName = typeof name === 'string' ? name.trim() : '';
     if (normalizedName.length < 2 || normalizedName.length > 80) {
       return res.status(400).json({ message: 'Name must be between 2 and 80 characters' });
@@ -222,7 +221,6 @@ router.put('/customers/:id', auth, async (req, res) => {
         $set: {
           name: normalizedName,
           phone: typeof phone === 'string' ? phone.trim() : '',
-          photoUrl: typeof photoUrl === 'string' ? photoUrl.trim() : '',
           address: typeof address === 'string' ? address.trim() : ''
         }
       },

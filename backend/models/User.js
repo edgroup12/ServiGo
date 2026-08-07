@@ -17,7 +17,8 @@ const userSchema = new mongoose.Schema({
   reviewCount: { type: Number, default: 0, min: 0 },
   isAvailable: { type: Boolean, default: true },
   distance: { type: Number }, // Dummy distance in km
-  photoUrl: { type: String },
+  photoUrl: { type: String, trim: true },
+  profileImagePublicId: { type: String, trim: true },
   resetPasswordToken: { type: String, select: false },
   resetPasswordExpires: { type: Date, select: false }
 });

@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const apiRoutes = require('./routes/api');
 const paymentRoutes = require('./routes/payment');
+const uploadRoutes = require('./routes/upload');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
@@ -57,6 +58,7 @@ const authLimiter = rateLimit({
 
 app.use('/api/auth', authLimiter);
 app.use('/api', limiter);
+app.use('/api/upload', uploadRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/payment', paymentRoutes);
 

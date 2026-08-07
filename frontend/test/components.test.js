@@ -6,7 +6,9 @@ import { createServer } from 'vite';
 
 let vite;
 let AsyncState;
+let ProfileImageUpload;
 let chatState;
+let profileImage;
 
 before(async () => {
     vite = await createServer({
@@ -16,7 +18,9 @@ before(async () => {
         logLevel: 'error'
     });
     AsyncState = await vite.ssrLoadModule('/src/components/AsyncState.jsx');
+    ProfileImageUpload = await vite.ssrLoadModule('/src/components/ProfileImageUpload.jsx');
     chatState = await vite.ssrLoadModule('/src/hooks/chat-state.js');
+    profileImage = await vite.ssrLoadModule('/src/utils/profile-image.js');
 });
 
 after(async () => {
@@ -77,6 +81,67 @@ describe('AsyncState components', () => {
 
         assert.match(actionableHtml, /Explore services/);
         assert.doesNotMatch(passiveHtml, /Explore services/);
+    });
+});
+
+describe('profile image upload UI', () => {
+    const makeFile = (name, type, size) => ({ name, type, size });
+
+    it('accepts JPG, JPEG, PNG, and WebP files up to 5 MB', () => {
+        for (const [name, type] of [
+            ['profile.jpg', 'image/jpeg'],
+            ['profile.jpeg', 'image/jpeg'],
+            ['profile.png', 'image/png'],
+            ['profile.webp', 'image/webp']
+        ]) {
+            assert.equal(profileImage.validateProfileImage(makeFile(name, type, 1024)), '');
+        }
+        assert.equal(
+            profileImage.validateProfileImage(makeFile('profile.png', 'image/png', profileImage.PROFILE_IMAGE_MAX_BYTES)),
+            ''
+        );
+    });
+
+    it('rejects spoofed formats and files larger than 5 MB', () => {
+        assert.match(
+            profileImage.validateProfileImage(makeFile('profile.jpg', 'application/octet-stream', 1024)),
+            /JPG.*PNG.*WebP/i
+        );
+        assert.match(
+            profileImage.validateProfileImage(makeFile('profile.exe', 'image/jpeg', 1024)),
+            /JPG.*PNG.*WebP/i
+        );
+        assert.match(
+            profileImage.validateProfileImage(makeFile('profile.webp', 'image/webp', profileImage.PROFILE_IMAGE_MAX_BYTES + 1)),
+            /5 MB/i
+        );
+    });
+
+    it('calculates bounded progress and exposes backend upload errors', () => {
+        assert.equal(profileImage.calculateUploadProgress(25, 100), 25);
+        assert.equal(profileImage.calculateUploadProgress(150, 100), 100);
+        assert.equal(profileImage.calculateUploadProgress(10, 0), 0);
+        assert.equal(
+            profileImage.getUploadErrorMessage({ response: { data: { message: 'Backend rejected image' } } }),
+            'Backend rejected image'
+        );
+        assert.match(profileImage.getUploadErrorMessage({}), /try again/i);
+    });
+
+    it('renders an accessible file picker, preview, constraints, and idle state', () => {
+        const html = renderToStaticMarkup(
+            React.createElement(ProfileImageUpload.default, {
+                currentUser: { name: 'Test Customer', photoUrl: 'https://res.cloudinary.com/demo/profile.jpg' },
+                onUploaded: () => { }
+            })
+        );
+
+        assert.match(html, /type="file"/);
+        assert.match(html, /\.jpg,\.jpeg,\.png,\.webp/);
+        assert.match(html, /Profile preview/);
+        assert.match(html, /Maximum 5 MB/);
+        assert.match(html, /Choose image/);
+        assert.match(html, /res\.cloudinary\.com/);
     });
 });
 
