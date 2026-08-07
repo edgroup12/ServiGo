@@ -3,6 +3,7 @@
 require('dotenv').config();
 
 const http = require('http');
+const crypto = require('node:crypto');
 const express = require('express');
 const helmet = require('helmet');
 const { Server } = require('socket.io');
@@ -18,6 +19,7 @@ const {
     acknowledgement
 } = require('./contracts');
 const { authorizeBookingRoom } = require('./authorize-booking');
+const { createLocationStore } = require('./location-store');
 const { Message } = require('./models');
 const logger = require('./logger');
 
@@ -39,13 +41,30 @@ const createRealtimeServer = ({
      */
     bookingModel = undefined,
     /** Realtime reads persisted messages but never creates them. */
-    messageModel = Message
+    messageModel = Message,
+    locationStore: injectedLocationStore = undefined
 } = {}) => {
     const app = express();
     app.disable('x-powered-by');
     app.use(helmet());
 
     let acceptingConnections = true;
+    const locationStore = injectedLocationStore || createLocationStore({ io: null });
+    const internalSecret = String(process.env.REALTIME_INTERNAL_SECRET || '').trim();
+
+    app.post('/internal/location/clear', express.json({ limit: '2kb' }), (req, res) => {
+        const providedSecret = String(req.get('x-servigo-internal-secret') || '');
+        if (!internalSecret || providedSecret.length !== internalSecret.length
+            || !crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(internalSecret))) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+        const bookingId = req.body?.bookingId;
+        if (typeof bookingId !== 'string' || !bookingId || bookingId.length > LIMITS.MAX_BOOKING_ID_LENGTH) {
+            return res.status(400).json({ message: 'A valid booking ID is required' });
+        }
+        const cleared = locationStore.clear(bookingId, req.body?.reason || 'booking_transition');
+        return res.status(200).json({ cleared });
+    });
 
     app.get('/health', (_req, res) => {
         res.status(200).json({
@@ -85,6 +104,8 @@ const createRealtimeServer = ({
         serveClient: false,
         transports: ['websocket', 'polling']
     });
+
+    locationStore.bind(io);
 
     io.use(createSocketAuthenticator({
         jwtSecret: config.jwtSecret,
@@ -169,8 +190,74 @@ const createRealtimeServer = ({
 
         socket.on(EVENTS.CHAT_JOIN, handleRoomJoin('chat'));
         socket.on(EVENTS.CHAT_LEAVE, handleRoomLeave('chat'));
-        socket.on(EVENTS.LOCATION_JOIN, handleRoomJoin('location'));
+        socket.on(EVENTS.LOCATION_JOIN, async (payload, callback) => {
+            const result = await authorizeBookingRoom({
+                bookingId: payload?.bookingId,
+                user: socket.data.user,
+                scope: 'location',
+                ...(bookingModel ? { bookingModel } : {})
+            });
+            if (!result.ok) {
+                return safelyAcknowledge(callback, acknowledgement.error(result.code, result.message));
+            }
+            await socket.join(roomNames.location(result.booking.id));
+            return safelyAcknowledge(callback, acknowledgement.success({
+                bookingId: result.booking.id,
+                bookingStatus: result.booking.status,
+                roomScope: 'location',
+                canPublish: socket.data.user.id === result.booking.workerId,
+                latestLocation: locationStore.getLatest(result.booking.id)
+            }));
+        });
         socket.on(EVENTS.LOCATION_LEAVE, handleRoomLeave('location'));
+
+        const validateLocationPayload = (payload) => {
+            const { bookingId, latitude, longitude, accuracy, clientTimestamp } = payload ?? {};
+            if (
+                typeof bookingId !== 'string' || !bookingId
+                || bookingId.length > LIMITS.MAX_BOOKING_ID_LENGTH
+                || !Number.isFinite(latitude) || latitude < -90 || latitude > 90
+                || !Number.isFinite(longitude) || longitude < -180 || longitude > 180
+                || (accuracy !== undefined && (!Number.isFinite(accuracy) || accuracy < 0 || accuracy > LIMITS.LOCATION_MAX_ACCURACY_METERS))
+            ) return null;
+            if (clientTimestamp !== undefined && (typeof clientTimestamp !== 'string' || Number.isNaN(Date.parse(clientTimestamp)))) return null;
+            return { bookingId, latitude, longitude, ...(accuracy === undefined ? {} : { accuracy }), clientTimestamp };
+        };
+
+        socket.on(EVENTS.LOCATION_START, async (payload, callback) => {
+            const result = await authorizeBookingRoom({ bookingId: payload?.bookingId, user: socket.data.user, scope: 'location', ...(bookingModel ? { bookingModel } : {}) });
+            if (!result.ok) return safelyAcknowledge(callback, acknowledgement.error(result.code, result.message));
+            if (socket.data.user.id !== result.booking.workerId) return safelyAcknowledge(callback, acknowledgement.error(ERROR_CODES.FORBIDDEN, 'Only the assigned worker can share location'));
+            locationStore.start({ bookingId: result.booking.id, workerId: socket.data.user.id, socketId: socket.id });
+            return safelyAcknowledge(callback, acknowledgement.success({ bookingId: result.booking.id, sharing: true }));
+        });
+
+        socket.on(EVENTS.LOCATION_PUBLISH, async (payload, callback) => {
+            const location = validateLocationPayload(payload);
+            if (!location) return safelyAcknowledge(callback, acknowledgement.error(ERROR_CODES.INVALID_PAYLOAD, 'Valid coordinates are required'));
+            const result = await authorizeBookingRoom({ bookingId: location.bookingId, user: socket.data.user, scope: 'location', ...(bookingModel ? { bookingModel } : {}) });
+            if (!result.ok) {
+                locationStore.clear(location.bookingId, 'booking_inactive');
+                return safelyAcknowledge(callback, acknowledgement.error(result.code, result.message));
+            }
+            if (socket.data.user.id !== result.booking.workerId) return safelyAcknowledge(callback, acknowledgement.error(ERROR_CODES.FORBIDDEN, 'Only the assigned worker can publish location'));
+            const session = locationStore.getSession(location.bookingId);
+            if (!session || session.socketId !== socket.id) return safelyAcknowledge(callback, acknowledgement.error(ERROR_CODES.FORBIDDEN, 'Start sharing before publishing location'));
+            const nowMs = Date.now();
+            if (session.lastPublishedAt && nowMs - session.lastPublishedAt < LIMITS.LOCATION_MIN_INTERVAL_MS) return safelyAcknowledge(callback, acknowledgement.error(ERROR_CODES.RATE_LIMITED, 'Location updates are too frequent'));
+            const canonical = locationStore.publish({ bookingId: location.bookingId, socketId: socket.id, location: { latitude: location.latitude, longitude: location.longitude, ...(location.accuracy === undefined ? {} : { accuracy: location.accuracy }) }, publishedAt: nowMs });
+            socket.to(roomNames.location(location.bookingId)).emit(EVENTS.LOCATION_UPDATE, canonical);
+            return safelyAcknowledge(callback, acknowledgement.success({ location: canonical }));
+        });
+
+        socket.on(EVENTS.LOCATION_STOP, async (payload, callback) => {
+            const bookingId = payload?.bookingId;
+            if (typeof bookingId !== 'string' || !bookingId) return safelyAcknowledge(callback, acknowledgement.error(ERROR_CODES.INVALID_PAYLOAD, 'A valid booking ID is required'));
+            const session = locationStore.getSession(bookingId);
+            if (session && session.socketId !== socket.id) return safelyAcknowledge(callback, acknowledgement.error(ERROR_CODES.FORBIDDEN, 'Only the active sharing worker can stop sharing'));
+            locationStore.clear(bookingId, 'stopped');
+            return safelyAcknowledge(callback, acknowledgement.success({ bookingId, sharing: false }));
+        });
 
         // ── v1:chat:publish ──────────────────────────────────────────────────
         //
@@ -347,6 +434,7 @@ const createRealtimeServer = ({
         });
 
         socket.on('disconnect', (reason) => {
+            locationStore.clearForSocket(socket.id, 'disconnected');
             logger.info('socket.disconnected', {
                 socketId: socket.id,
                 userId: socket.data.user.id,

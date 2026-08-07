@@ -7,6 +7,7 @@ const Booking = require('../models/Booking');
 const Message = require('../models/Message');
 const Notification = require('../models/Notification');
 const BlacklistedToken = require('../models/BlacklistedToken');
+const { notifyLocationLifecycle } = require('../services/realtime-lifecycle');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { auth, adminOnly } = require('../middleware/auth');
@@ -347,6 +348,12 @@ router.patch('/bookings/:id/status', auth, async (req, res) => {
     existingBooking.status = status;
     const booking = await existingBooking.save();
     await booking.populate('worker');
+
+    if (status === 'completed' || status === 'cancelled') {
+      notifyLocationLifecycle(booking._id, `booking_${status}`).catch((lifecycleError) => {
+        console.error('Unable to clear realtime location state:', lifecycleError.message);
+      });
+    }
 
     if (booking) {
       let title = '';
