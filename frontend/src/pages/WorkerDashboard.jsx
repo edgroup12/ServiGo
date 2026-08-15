@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Calendar,
   Check,
@@ -22,11 +22,13 @@ import { ErrorState, LoadingState } from '../components/AsyncState';
 
 const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeChat, setActiveChat] = useState(null);
+  const [jobSearchQuery, setJobSearchQuery] = useState('');
   const [isAvailable, setIsAvailable] = useState(currentUser?.isAvailable ?? true);
 
   const toggleAvailability = async () => {
@@ -62,6 +64,15 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
     return () => window.clearTimeout(request);
   }, [fetchBookings]);
 
+  useEffect(() => {
+    const section = searchParams.get('section');
+    if (!section) return undefined;
+    const request = window.setTimeout(() => {
+      document.getElementById(section)?.scrollIntoView({ behavior: 'smooth' });
+    }, 0);
+    return () => window.clearTimeout(request);
+  }, [searchParams]);
+
   const retryFetch = () => {
     setLoading(true);
     setError('');
@@ -79,9 +90,21 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
     }
   };
 
-  const pendingRequests = bookings.filter(b => b.status === 'pending');
-  const activeJobs = bookings.filter(b => b.status === 'confirmed');
-  const pastJobs = bookings.filter(b => b.status === 'completed' || b.status === 'declined');
+  const normalizedJobSearch = jobSearchQuery.toLowerCase();
+  const visibleBookings = bookings.filter(booking => {
+    if (!normalizedJobSearch) return true;
+    return [
+      booking.customer?.name,
+      booking.address,
+      booking.description,
+      booking.status
+    ].some(value => value?.toLowerCase().includes(normalizedJobSearch));
+  });
+  const pendingRequests = visibleBookings.filter(b => b.status === 'pending');
+  const activeJobs = visibleBookings.filter(b => b.status === 'confirmed');
+  const pastJobs = visibleBookings.filter(b => b.status === 'completed' || b.status === 'declined');
+  const allPendingRequests = bookings.filter(b => b.status === 'pending');
+  const allActiveJobs = bookings.filter(b => b.status === 'confirmed');
 
   // Calculate earnings
   const earnings = bookings.filter(b => b.status === 'completed').reduce((acc, curr) => acc + curr.estimatedPrice, 0);
@@ -115,7 +138,7 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
     {
       icon: Briefcase,
       label: 'Active Jobs',
-      value: activeJobs.length,
+      value: allActiveJobs.length,
       trend: '+3',
       colorClass: 'bg-neon-blue',
       onClick: () => scrollToSection('active-jobs')
@@ -123,7 +146,7 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
     {
       icon: Calendar,
       label: 'New Requests',
-      value: pendingRequests.length,
+      value: allPendingRequests.length,
       trend: '+5',
       colorClass: 'bg-neon-teal',
       onClick: () => scrollToSection('incoming-requests')
@@ -147,7 +170,12 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
   ];
 
   return (
-    <DashboardLayout user={currentUser} setCurrentUser={setCurrentUser}>
+    <DashboardLayout
+      user={currentUser}
+      setCurrentUser={setCurrentUser}
+      onSearch={setJobSearchQuery}
+      searchPlaceholder="Search jobs or customers..."
+    >
       {/* Hero Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 sm:mb-12">
         <div>
@@ -346,10 +374,13 @@ const WorkerDashboard = ({ currentUser, setCurrentUser }) => {
             )}
 
             <button
-              onClick={() => toast('Full History feature is coming soon!', 'info')}
-              className="w-full mt-8 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black text-white/40 hover:text-white uppercase tracking-widest transition-all"
+              type="button"
+              onClick={() => toast('Full History is coming soon.', 'info')}
+              className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl border border-amber-400/20 bg-amber-400/10 py-3 text-[10px] font-black uppercase tracking-widest text-amber-200 hover:bg-amber-400/15 transition-all"
+              title="Full History - Coming Soon"
             >
               View Full History
+              <span className="rounded-md bg-amber-300/15 px-2 py-1 text-[8px]">Coming Soon</span>
             </button>
           </div>
 

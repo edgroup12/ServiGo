@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Calendar,
   CheckCircle2,
@@ -20,6 +20,7 @@ import { ErrorState, LoadingState } from '../components/AsyncState';
 
 const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,14 +52,21 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
     fetchBookings();
   };
 
-  if (!currentUser) return null;
-
   const scrollToSection = (id) => {
     const element = document.getElementById(id);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
     }
   };
+
+  useEffect(() => {
+    const section = searchParams.get('section');
+    if (!section) return undefined;
+    const request = window.setTimeout(() => scrollToSection(section), 0);
+    return () => window.clearTimeout(request);
+  }, [searchParams]);
+
+  if (!currentUser) return null;
 
   const stats = [
     {
@@ -96,7 +104,12 @@ const CustomerDashboard = ({ currentUser, setCurrentUser }) => {
   ];
 
   return (
-    <DashboardLayout user={currentUser} setCurrentUser={setCurrentUser}>
+    <DashboardLayout
+      user={currentUser}
+      setCurrentUser={setCurrentUser}
+      onSearch={(query) => navigate(query ? `/services/all?search=${encodeURIComponent(query)}` : '/services/all')}
+      searchPlaceholder="Search workers or services..."
+    >
       {/* Hero Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 sm:mb-12">
         <div>

@@ -17,8 +17,8 @@ const MenuItem = ({ icon: Icon, label, path, active, onClick }) => {
     <div
       onClick={onClick}
       className={`flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all duration-300 group cursor-pointer hover:translate-x-1 ${active
-          ? 'bg-gradient-primary shadow-glow-blue text-white'
-          : 'text-white/60 hover:text-white hover:bg-[var(--glass-bg)]'
+        ? 'bg-gradient-primary shadow-glow-blue text-white'
+        : 'text-white/60 hover:text-white hover:bg-[var(--glass-bg)]'
         }`}
     >
       <div className="flex items-center gap-3">
@@ -49,25 +49,30 @@ const Sidebar = ({ user, setCurrentUser, isOpen, setIsOpen }) => {
       ? '/customer-dashboard/profile'
       : dashboardPath;
 
-  const scrollToBookings = () => {
+  const navigateToSection = (sectionId) => {
     setIsOpen(false);
-    const element = document.getElementById('recent-bookings');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
+    const scrollToTarget = () => {
+      const element = document.getElementById(sectionId);
+      if (element) element.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    if (location.pathname === dashboardPath) {
+      scrollToTarget();
     } else {
-      navigate(dashboardPath);
-      setTimeout(() => {
-        const el = document.getElementById('recent-bookings');
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
+      navigate(`${dashboardPath}?section=${sectionId}`);
+      window.setTimeout(scrollToTarget, 100);
     }
+  };
+
+  const scrollToBookings = () => {
+    navigateToSection(user?.role === 'worker' ? 'incoming-requests' : 'recent-bookings');
   };
 
   const menuItems = user?.role === 'admin'
     ? [
-      { icon: LayoutDashboard, label: 'Dashboard', path: dashboardPath },
-      { icon: Users, label: 'User Management', path: dashboardPath },
-      { icon: Grid, label: 'Categories', path: '/' },
+      { icon: LayoutDashboard, label: 'Dashboard', path: `${dashboardPath}?tab=overview` },
+      { icon: Users, label: 'User Management', path: `${dashboardPath}?tab=users` },
+      { icon: Grid, label: 'Categories', path: '/#categories' },
     ]
     : [
       { icon: LayoutDashboard, label: 'Dashboard', path: dashboardPath },
@@ -113,7 +118,7 @@ const Sidebar = ({ user, setCurrentUser, isOpen, setIsOpen }) => {
           <MenuItem
             key={item.label}
             {...item}
-            active={Boolean(item.path && (location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)))}
+            active={Boolean(item.path && item.path !== '/#categories' && location.pathname === item.path.split('?')[0] && (!item.path.includes('?') || location.search === `?${item.path.split('?')[1]}`))}
             onClick={item.onClick ? item.onClick : () => setIsOpen(false)}
           />
         ))}

@@ -4,6 +4,7 @@ import api from '../../services/api';
 
 const NotificationCenter = ({ currentUser, onClose }) => {
   const [notifications, setNotifications] = useState([]);
+  const [showAll, setShowAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -95,7 +96,7 @@ const NotificationCenter = ({ currentUser, onClose }) => {
           </div>
         ) : (
           <div className="divide-y divide-slate-700/80">
-            {notifications.map((notification, index) => (
+            {(showAll ? notifications : notifications.slice(0, 5)).map((notification, index) => (
               <div
                 key={notification._id || `${notification.timestamp}-${index}`}
                 className={`relative p-5 transition-colors group ${!notification.isRead ? 'cursor-pointer bg-cyan-950/70 hover:bg-cyan-900/60' : 'bg-slate-900/80 hover:bg-slate-800'}`}
@@ -136,11 +137,18 @@ const NotificationCenter = ({ currentUser, onClose }) => {
         )}
       </div>
 
-      <div className="p-4 border-t border-slate-700 text-center bg-slate-900">
-        <button className="text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-white transition-colors">
-          View All Notifications
-        </button>
-      </div>
+      {notifications.length > 5 && (
+        <div className="p-4 border-t border-slate-700 text-center bg-slate-900">
+          <button
+            type="button"
+            onClick={() => setShowAll(current => !current)}
+            className="text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-white transition-colors"
+            aria-expanded={showAll}
+          >
+            {showAll ? 'Show Recent' : `View All Notifications (${notifications.length})`}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

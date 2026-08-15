@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { Eye, MoreHorizontal, Clock, CheckCircle2, XCircle, MessageSquare, MapPin, CalendarPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +26,8 @@ const StatusBadge = ({ status }) => {
 const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [showAll, setShowAll] = useState(false);
+  const visibleBookings = showAll ? bookings : bookings.slice(0, 5);
 
   if (bookings.length === 0) {
     return (
@@ -47,11 +50,16 @@ const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
           <h3 className="text-xl font-black text-white font-poppins tracking-tight">Recent Bookings</h3>
           <p className="text-white/60 text-xs font-bold uppercase tracking-wider mt-1">Transaction overview</p>
         </div>
-        <button
-          className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
-        >
-          View All
-        </button>
+        {bookings.length > 5 && (
+          <button
+            type="button"
+            onClick={() => setShowAll(current => !current)}
+            className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white/60 hover:text-white hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+            aria-expanded={showAll}
+          >
+            {showAll ? 'Show Recent' : `View All (${bookings.length})`}
+          </button>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -66,7 +74,7 @@ const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {bookings.map((booking) => (
+            {visibleBookings.map((booking) => (
               <tr
                 key={booking._id}
                 className="hover:bg-white/[0.03] transition-colors group"
@@ -116,11 +124,25 @@ const RecentBookings = ({ bookings, onOpenChat, onTrackWorker }) => {
                         <MapPin size={16} />
                       </button>
                     )}
-                    <button onClick={() => toast('View Details coming soon', 'info')} className="p-2 bg-white/5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
+                    <button
+                      type="button"
+                      onClick={() => toast('View Details is coming soon.', 'info')}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/20 bg-amber-400/10 px-2 py-2 text-amber-200 hover:bg-amber-400/15 transition-all"
+                      title="View Details - Coming Soon"
+                      aria-label="View Details - Coming Soon"
+                    >
                       <Eye size={16} />
+                      <span className="text-[9px] font-black uppercase tracking-wider">Soon</span>
                     </button>
-                    <button onClick={() => toast('More Options coming soon', 'info')} className="p-2 bg-white/5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
+                    <button
+                      type="button"
+                      onClick={() => toast('More Options is coming soon.', 'info')}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/20 bg-amber-400/10 px-2 py-2 text-amber-200 hover:bg-amber-400/15 transition-all"
+                      title="More Options - Coming Soon"
+                      aria-label="More Options - Coming Soon"
+                    >
                       <MoreHorizontal size={16} />
+                      <span className="text-[9px] font-black uppercase tracking-wider">Soon</span>
                     </button>
                   </div>
                 </td>

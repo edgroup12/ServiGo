@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../components/Toast';
 import {
   Users,
@@ -9,7 +10,8 @@ import {
   ShieldCheck,
   Search,
   Filter,
-  BarChart3
+  BarChart3,
+  X
 } from 'lucide-react';
 import api from '../services/api';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
@@ -25,7 +27,10 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('overview');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const fetchAdminData = useCallback(async () => {
     try {
@@ -52,6 +57,17 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
     return () => window.clearTimeout(request);
   }, [fetchAdminData]);
 
+  const activeTab = searchParams.get('tab') === 'users' ? 'users' : 'overview';
+
+  const handleTabChange = (tab) => {
+    setSearchParams({ tab });
+  };
+
+  const handleNavbarSearch = (query) => {
+    setSearchQuery(query);
+    setSearchParams({ tab: 'users' });
+  };
+
   const retryFetch = () => {
     setLoading(true);
     setError('');
@@ -69,10 +85,13 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
     }
   };
 
-  const filteredUsers = users.filter(u =>
-    u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredUsers = users.filter(u => {
+    const normalizedQuery = searchQuery.toLowerCase();
+    const matchesSearch = u.name?.toLowerCase().includes(normalizedQuery) ||
+      u.email?.toLowerCase().includes(normalizedQuery);
+    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
 
   if (loading) {
     return (
@@ -102,7 +121,14 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
   }
 
   return (
-    <DashboardLayout user={currentUser} setCurrentUser={setCurrentUser} theme={theme} toggleTheme={toggleTheme}>
+    <DashboardLayout
+      user={currentUser}
+      setCurrentUser={setCurrentUser}
+      theme={theme}
+      toggleTheme={toggleTheme}
+      onSearch={handleNavbarSearch}
+      searchPlaceholder="Search users by name or email..."
+    >
       <div className="space-y-8 pb-12">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -114,13 +140,13 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
           </div>
           <div className="flex w-full gap-2 overflow-x-auto pb-1 md:w-auto">
             <button
-              onClick={() => setActiveTab('overview')}
+              onClick={() => handleTabChange('overview')}
               className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'overview' ? 'bg-neon-blue text-white shadow-glow-blue' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
             >
               Overview
             </button>
             <button
-              onClick={() => setActiveTab('users')}
+              onClick={() => handleTabChange('users')}
               className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-neon-blue text-white shadow-glow-blue' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
             >
               User Management
@@ -211,9 +237,35 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
                     className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white outline-none focus:border-neon-blue/50 transition-all w-full md:w-64 font-bold"
                   />
                 </div>
-                <button className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-white/40 hover:text-white transition-all">
-                  <Filter size={18} />
-                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters(current => !current)}
+                    className={`p-2.5 rounded-xl border transition-all ${roleFilter !== 'all' ? 'border-neon-blue/50 bg-neon-blue/15 text-neon-blue' : 'border-white/10 bg-white/5 text-white/40 hover:text-white'}`}
+                    aria-label="Filter users by role"
+                    aria-expanded={showFilters}
+                    title="Filter users by role"
+                  >
+                    <Filter size={18} />
+                  </button>
+                  {showFilters && (
+                    <div className="absolute right-0 top-full z-20 mt-2 w-44 rounded-xl border border-white/10 bg-slate-950 p-2 shadow-xl">
+                      {['all', 'customer', 'worker', 'admin'].map(role => (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => {
+                            setRoleFilter(role);
+                            setShowFilters(false);
+                          }}
+                          className={`block w-full rounded-lg px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest transition-colors ${roleFilter === role ? 'bg-neon-blue/15 text-neon-blue' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+                        >
+                          {role === 'all' ? 'All roles' : role}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -262,7 +314,13 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
                       </td>
                       <td className="px-8 py-6 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                          <button className="p-2 bg-white/5 rounded-lg border border-white/10 text-white/40 hover:text-white transition-all">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedUser(user)}
+                            className="p-2 bg-white/5 rounded-lg border border-white/10 text-white/40 hover:text-white transition-all"
+                            aria-label={`Inspect access for ${user.name}`}
+                            title="Inspect account access"
+                          >
                             <ShieldCheck size={16} />
                           </button>
                           <button
@@ -281,6 +339,28 @@ const AdminDashboard = ({ currentUser, setCurrentUser, theme, toggleTheme }) => 
           </div>
         )}
       </div>
+
+      {selectedUser && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="access-dialog-title">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <h2 id="access-dialog-title" className="text-lg font-black text-white">Account Access</h2>
+                <p className="mt-1 text-xs font-bold text-white/40">Read-only account information</p>
+              </div>
+              <button type="button" onClick={() => setSelectedUser(null)} className="rounded-lg p-2 text-white/50 hover:bg-white/10 hover:text-white" aria-label="Close account access dialog">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between gap-4 border-b border-white/5 pb-3"><span className="text-white/40">Name</span><span className="text-right font-bold text-white">{selectedUser.name}</span></div>
+              <div className="flex justify-between gap-4 border-b border-white/5 pb-3"><span className="text-white/40">Email</span><span className="text-right font-bold text-white">{selectedUser.email}</span></div>
+              <div className="flex justify-between gap-4 border-b border-white/5 pb-3"><span className="text-white/40">Role</span><span className="font-bold uppercase text-neon-blue">{selectedUser.role}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-white/40">Account status</span><span className="font-bold text-neon-green">Active</span></div>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 };

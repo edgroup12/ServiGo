@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 
-const DashboardLayout = ({ children, user, setCurrentUser, theme, toggleTheme }) => {
+const DashboardLayout = ({ children, user, setCurrentUser, theme, toggleTheme, onSearch, searchPlaceholder }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -38,6 +38,8 @@ const DashboardLayout = ({ children, user, setCurrentUser, theme, toggleTheme })
           theme={theme}
           toggleTheme={toggleTheme}
           toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          onSearch={onSearch}
+          searchPlaceholder={searchPlaceholder}
         />
 
         <main className="flex-grow min-w-0 w-full max-w-7xl mx-auto p-4 sm:p-6 md:p-8 lg:p-12 mt-2 sm:mt-4">

@@ -117,7 +117,7 @@ const Home = () => {
       </div>
 
       {/* Categories */}
-      <div className="container mx-auto -mt-6 px-4">
+      <div id="categories" className="container mx-auto -mt-6 scroll-mt-24 px-4">
         {loading.categories ? (
           <LoadingState message="Loading services..." compact />
         ) : errors.categories ? (
